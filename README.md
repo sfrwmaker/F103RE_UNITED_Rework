@@ -7,4 +7,4 @@ The following directories shoul be market a 'included to project':
   TFT
   W25Qxx
 
-Detailed instructions can be found on hackster.io site, 
+Detailed instructions can be found on hackster.io site, https://www.hackster.io/sfrwmaker/united-soldering-and-rework-station-b4ad4f
