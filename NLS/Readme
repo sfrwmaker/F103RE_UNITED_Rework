@@ -1,0 +1,5 @@
+Native language support files
+cfg.json - main configuration file contains definition of native languages
+ru_lang.json, po_lang.json and port_lang.json - are files for Russian, Polish and Portuguese languages
+template_lang - template file for you preferred language
+ubunty_cyr.font, ubintu_we.font, impact_we.font - binary font data
