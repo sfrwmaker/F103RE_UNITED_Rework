@@ -4,6 +4,10 @@
  *
  *  2024 NOV 19
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2025 JAN 28
+ *		Separate ambientTemp() into two routines to calculate stm32 temperature and steinhart sensor temperature inside Hakko T12 handle
+ *		Save MCU internal temperature at startup to adjust internal temperature. As soon as the MCU temperature is higher than actual ambient temperature,
+ *		return average value between MCU temperature and MCU temperature at startup.
  */
 
 #ifndef HW_H_
@@ -42,9 +46,12 @@ class HW {
 		HOTGUN		hotgun;
 		BUZZER		buzz;
 	private:
+		int32_t				internalTemp(int32_t raw_stm32);
+		int32_t 			steinhartTemp(int32_t raw_ambient);
 		EMP_AVERAGE 	t_amb;								// Exponential average of the ambient temperature
 		EMP_AVERAGE		vrefint;							// Exponential average of the vrefint
 		EMP_AVERAGE		t_stm32;							// Exponential average of the internal MCU temperature
+		int8_t			start_temp			= 0; 			// Startup temperature
 		const uint8_t	ambient_emp_coeff	= 30;			// Exponential average coefficient for ambient temperature
 		const uint16_t	max_ambient_value	= 3900;			// About -30 degrees. If the soldering IRON disconnected completely, "ambient" value is greater than this
 		const uint8_t 	sw_jbc_len			= 15;			// JBC IRON switch history length
