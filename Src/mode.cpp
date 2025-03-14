@@ -1,8 +1,11 @@
 /*
  * mode.cpp
  *
- * 2024 NOV 27, v.1.00
+ *  2024 NOV 27, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
+ * 	2025 MAR 05
+ * 		Modified the MABOUT::loop() to call the flash erasing procedure
+ * 		Added FERASE class to implement the flash erasing procedure
  *
  */
 
@@ -189,7 +192,7 @@ MODE* MTACT::loop(void) {
 	if (button == 1) {										// The button pressed
 		pD->BRGT::dim(50);									// Turn-off the brightness, processing
 		if (!pCFG->toggleTipActivation(tip_index)) {
-			pFail->setMessage(MSG_EEPROM_WRITE);
+			pFail->setMessage(MSG_FLASH_WRITE_ERR);
 			return 0;
 		}
 		pD->BRGT::on();										// Restore the display brightness
@@ -1276,16 +1279,20 @@ bool MAUTOPID::updatePID(UNIT *pUnit) {
 }
 
 void MAUTOPID::clean(void) {
-	if (!keep_graph)										// Keep_graph flag setup when next mode is manual_pid
+	if (!keep_graph)											// Keep_graph flag setup when next mode is manual_pid
 		pCore->dspl.pidDestroyData();
 }
 
 //---------------------- The Fail mode: display error message --------------------
 void MFAIL::init(void) {
 	pCore->l_enc.reset(0, 0, 1, 1, 1, false);
-	pCore->buzz.failedBeep();
+	if (error) {
+		pCore->buzz.failedBeep();
+	} else {
+		pCore->buzz.shortBeep();
+	}
 	pCore->dspl.clear();
-	pCore->dspl.errorMessage(message, 100);					// Write ERROR message specified with setMessage()
+	pCore->dspl.errorMessage(error, message, 100);				// Write ERROR message specified with setMessage()
 	if (parameter[0])
 		pCore->dspl.debugMessage(parameter, 50, 200, 170);
 	update_screen = 0;
@@ -1304,7 +1311,8 @@ MODE* MFAIL::loop(void) {
 	return this;
 }
 
-void MFAIL::setMessage(const t_msg_id msg, const char *parameter) {
+void MFAIL::setMessage(const t_msg_id msg, bool error, const char *parameter) {
+	this->error = error;
 	message = msg;
 	if (parameter) {
 		strncpy(this->parameter, parameter, 19);
@@ -1329,6 +1337,12 @@ MODE* MABOUT::loop(void) {
 		return mode_return;									// Return to the main menu
 	} else if (b_status == 2) {
 		return mode_lpress;									// Activate debug mode
+	}
+	b_status = pCore->u_enc.buttonStatus();
+	if (b_status == 1) {									// Short button press
+		return mode_return;									// Return to the main menu
+	} else if (b_status == 2) {
+		return flash_erase;									// Activate flash erase procedure
 	}
 
 	if (HAL_GetTick() < update_screen) return this;
@@ -1429,10 +1443,10 @@ MODE* MDEBUG::loop(void) {
 
 //---------------------- The Flash format mode: Confirm and format the flash ----
 void FFORMAT::init(void) {
-	p = 2;														// Make sure the message sill be displayed for the first time in the loop
+	p = 2;														// Make sure the message will be displayed for the first time in the loop
 	pCore->l_enc.reset(1, 0, 1, 1, 1, true);
 	pCore->dspl.clear();
-	pCore->dspl.drawTitle(MSG_EEPROM_READ);
+	pCore->dspl.drawTitle(MSG_FLASH_READ_ERR);
 	pCore->dspl.BRGT::set(80);									// Turn on the display backlight
 	pCore->dspl.BRGT::on();
 }
@@ -1441,15 +1455,68 @@ MODE* FFORMAT::loop(void) {
 	uint8_t answer = pCore->l_enc.read();
 	if (answer != p) {
 		p = answer;
-		pCore->dspl.showDialog(MSG_FORMAT_EEPROM, 100, answer == 0);
+		pCore->dspl.showDialog(MSG_DO_FORMAT_FLASH, 100, answer == 0);
 	}
 	if (pCore->l_enc.buttonStatus() > 0) {
 		if (answer == 0) {
 			if (!pCore->cfg.formatFlashDrive()) {
+				pFail->setMessage(MSG_FORMAT_FAILED);
 				return 0;										// Failed to format the FLASH
 			}
 		}
 		return mode_return;										// The main working mode
+	}
+	return this;
+}
+
+//---------------------- The Flash format mode: Confirm and format the flash ----
+void FERASE::init(void) {
+	p 		= 2;												// Make sure the message will be displayed for the first time in the loop
+	dialog	= true;												// The dialog phase
+	sectors	= 1;pCore->cfg.sectors();								// The number of sectors on the FLASH. See flash.cpp
+	cur_sector = 0;
+	pCore->l_enc.reset(1, 0, 1, 1, 1, true);
+	pCore->dspl.clear();
+	pCore->dspl.drawTitle(MSG_FLASH_ERASE);
+	pCore->dspl.BRGT::set(80);									// Turn on the display backlight
+	pCore->dspl.BRGT::on();
+}
+
+MODE* FERASE::loop(void) {
+	if (dialog) {												// Show dialog mode
+		uint8_t answer = pCore->l_enc.read();
+		if (answer != p) {
+			p = answer;
+			pCore->dspl.showDialog(MSG_DO_ERASE_FLASH, 100, answer == 0);
+		}
+		if (pCore->l_enc.buttonStatus() > 0) {
+			if (answer == 0) {
+				dialog = false;									// Proceed to the next phase, flash erasing
+				pCore->dspl.clear();
+				pCore->dspl.BRGT::set(80);						// Turn on the display backlight
+				pCore->dspl.BRGT::on();
+				pCore->dspl.drawTitle(MSG_FLASH_ERASE);
+				pCore->dspl.erasingFlash(cur_sector, sectors, true);
+				return this;
+			}
+			return mode_return;									// The main working mode
+		}
+	} else {													// Flash erasing mode
+		if (cur_sector < sectors) {
+			if (!pCore->cfg.eraseSector(cur_sector)) {			// Failed to erase sector
+				pFail->setMessage(MSG_FLASH_ERASE_ERR);
+				return 0;										// Call the Fail mode
+			}
+			++cur_sector;
+		} else {												// The FLASH has been erased completely
+			if (!pCore->cfg.formatFlashDrive()) {
+				pFail->setMessage(MSG_FORMAT_FAILED);
+			} else {
+				pFail->setMessage(MSG_FORMAT_COMPLETE, false);
+			}
+			return 0;											// Call the Fail mode
+		}
+		pCore->dspl.erasingFlash(cur_sector, sectors, false);
 	}
 	return this;
 }

@@ -3,6 +3,9 @@
  *
  * 2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
+ *  2025 MAR 05, v.1.01
+ *  	Added erasingFlash() to implement flash erasing procedure
+ *  	Modified the DSPL::init() to fix bug in bm_adc_read initialization
  */
 
 #include <string.h>
@@ -239,12 +242,6 @@ void DSPL::init(bool ips) {
 
 	// Allocate BITMAP for unit power gauge
 	bm_gauge = BITMAP(13, h);
-
-	// Allocate BITMAP bm_adc_read to show the temperature in the internal units
-	setFont(debug_font);
-	w	= getStrWidth("0000") + 2;
-	bm_adc_read	= BITMAP(w, h);
-
 	if (ips) {
 		tft_ILI9341::initIPS();								// Initialize display IPS type
 	} else {
@@ -1000,8 +997,8 @@ void DSPL::pidDestroyData(void) {
 	GRAPH::freeData();
 }
 
-void DSPL::errorMessage(t_msg_id err_id, uint16_t y) {
-	const char *err = NLS_MSG::msg(MSG_ERROR);
+void DSPL::errorMessage(bool error, t_msg_id err_id, uint16_t y) {
+	const char *err = NLS_MSG::msg(error?MSG_ERROR:MSG_INFO);
 	fillScreen(bg_color);
 	const char *msg = NLS_MSG::msg(err_id);
 	if (msg[0] == 0) {													// No error message specified, show big "ERROR"
@@ -1150,6 +1147,39 @@ void DSPL::debugMessage(const char *msg, uint16_t x, uint16_t y, uint16_t len) {
 	uint8_t  h	= getMaxCharHeight();
 	drawFilledRect(x, y, len, h, bg_color);
 	drawStr(x, y+h, msg, fg_color);
+}
+
+void DSPL::erasingFlash(uint16_t cur_sector, uint16_t total_sectors, bool show_titles) {
+	const char *total_msg = "number of sectors";
+	const char *c_sect_msg = "erasing";
+	setFont(debug_font);
+	uint16_t h		= getMaxCharHeight() + 10;
+	uint16_t offset = getFontTopOffset();
+	if (bm_adc_read.width() == 0) {
+		uint16_t w	= getStrWidth("0000") + 2;
+		bm_adc_read	= BITMAP(w, h-10);
+	}
+	uint16_t d_pos	= width() - bm_adc_read.width() - 16;				// The data x-coordinate
+	uint16_t y		= (height() - 2 * h) >> 1;							// Y-coordinate for the first message
+	char buff[10];
+	bm_adc_read.clear();
+	sprintf(buff, "%4d", cur_sector);
+	strToBitmap(bm_adc_read, buff, align_left);
+	drawBitmap(d_pos, y, bm_adc_read, bg_color, fg_color);				// Show current erasing sector number
+	uint16_t g_max = width() - 20;
+	uint16_t g_len = map(cur_sector, 0, total_sectors, 0, g_max);
+	drawHGauge(g_len, g_max, 10, height()-16, pr_color);				// The gauge height is 10 pixels
+	if (show_titles) {													// Called first time, show the 'total sector number' message
+		uint16_t w = getUTF8Width(c_sect_msg);
+		drawUTF8(d_pos - w - 16, y+offset, c_sect_msg, fg_color);		// 'Current sector' message
+		y += h;															// Go next line
+		w = getUTF8Width(total_msg);
+		drawUTF8(d_pos - w - 16, y+offset, total_msg, fg_color);		// 'Total sectors' message
+		bm_adc_read.clear();
+		sprintf(buff, "%4d", total_sectors);
+		strToBitmap(bm_adc_read, buff, align_left);
+		drawBitmap(d_pos, y, bm_adc_read, bg_color, fg_color);			// Show total sector number
+	}
 }
 
 void DSPL::checkBox(BITMAP &bm, uint16_t x, uint8_t size, bool checked) {

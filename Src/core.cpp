@@ -1,8 +1,11 @@
 /*
  * core.cpp
  *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
+ * 	2025 MAR 06, v.1.01
+ * 		Implemented flash erase procedure, see FERASE class initialization
+ * 		Changed class initialization because the MFAIL pointer now is inside the HW class
  *
  *  Hardware configuration:
  *  Analog pins:
@@ -70,23 +73,24 @@ const static	uint32_t	check_sw_period = 100;			// IRON switches check period, ms
 static HW		core;										// Hardware core (including all device instances)
 
 // MODE instances
+static	MFAIL			fail(&core);
 static	MWORK			work(&core);
 static	MSLCT			iselect(&core);
-static	MTACT			activate(&core);
+static	MTACT			activate(&core, &fail);
 static	MCALIB			calib_auto(&core);
 static	MCALIB_MANUAL	calib_manual(&core);
 static	MCALMENU		calib_menu(&core, &calib_auto, &calib_manual);
-static	MFAIL			fail(&core);
 static	MTPID			manual_pid(&core);
 static 	MAUTOPID		auto_pid(&core);
 static	MENU_PID		pid_menu(&core, &manual_pid, &auto_pid);
-static  MABOUT			about(&core);
 static  MDEBUG			debug(&core);
-static	FFORMAT			format(&core);
+static	FFORMAT			format(&core, &fail);
 static	MSETUP			param_menu(&core, &pid_menu);
 static	MENU_T12		t12_menu(&core, &calib_menu);
 static	MENU_JBC		jbc_menu(&core, &calib_menu);
 static  MENU_GUN		gun_menu(&core, &calib_manual);
+static  FERASE			flash_erase(&core, &fail);
+static  MABOUT			about(&core, &flash_erase);
 static	MMENU			main_menu(&core, &iselect, &param_menu, &activate, &t12_menu, &jbc_menu, &gun_menu, &about);
 static	MODE*           pMode = &work;
 
@@ -154,7 +158,6 @@ extern "C" void setup(void) {
 	work.setup(&main_menu, &iselect, &main_menu);
 	iselect.setup(&work, &activate, &main_menu);
 	activate.setup(&work, &work, &main_menu);
-	activate.setFail(&fail);
 	calib_auto.setup(&work, &work, &work);
 	calib_manual.setup(&calib_menu, &work, &work);
 	calib_menu.setup(&work, &work, &work);
@@ -170,6 +173,7 @@ extern "C" void setup(void) {
 	debug.setup(&work, &work, &work);
 	auto_pid.setup(&work, &manual_pid, &manual_pid);
 	format.setup(&work, 0, 0);
+	flash_erase.setup(&work, 0, 0);
 
 	core.dspl.clear();
 	if (usb_flash_busy) {									// Attached via usb port to the computer to upload files
@@ -182,12 +186,11 @@ extern "C" void setup(void) {
 				pMode	= &activate;						// No tip configured, run tip activation menu
 				break;
 			case CFG_READ_ERROR:							// Failed to read FLASH
-				fail.setMessage(MSG_EEPROM_READ);
+				fail.setMessage(MSG_FLASH_READ_ERR);
 				fail.setup(&fail, &fail, &format);			// Do not enter the main working mode
 				pMode	= &fail;
 				break;
 			case CFG_NO_FILESYSTEM:
-				fail.setMessage(MSG_FORMAT_FAILED);			// Prepare the fail message
 				pMode	= &format;
 				break;
 			case CFG_NO_TIP_LIST:

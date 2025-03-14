@@ -643,7 +643,7 @@ void CFG_CORE::setup(bool buzzer, bool celsius, bool big_temp_step, bool i_enc, 
 	if (g_enc)			a_cfg.bit_mask |= CFG_L_CLOCKWISE;
 	if (ips_display)	a_cfg.bit_mask |= CFG_DSPL_TYPE;
 	if (safe_iron_mode)	a_cfg.bit_mask |= CFG_SAFE_MODE;
-	a_cfg.dspl_bright	= constrain(bright, 1, 100);
+	a_cfg.dspl_bright	= constrain(bright, 1, 255);
 	if (safe_iron_mode) {									// Limit the iron preset temperature
 		uint16_t t_max = tempMax(d_t12);
 		if (a_cfg.t12_temp > t_max) a_cfg.t12_temp = t_max;

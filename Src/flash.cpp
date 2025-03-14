@@ -1,11 +1,13 @@
 /*
  * flash.cpp
  *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
  *
- * 2024 DEC 26
+ *  2024 DEC 26
  * 		int16_t W25Q::saveTipData(TIP* tip, bool keep)
+ *  2025 MAR 05, v.1.01
+ *  	Added sectors() and eraseSector() to implement the flash debug procedures
  */
 #include <string.h>
 #include "flash.h"
@@ -45,6 +47,14 @@ FLASH_STATUS W25Q::init(void) {
 
 bool W25Q::reset() {
 	return W25Qxx_Init();
+}
+
+uint16_t W25Q::sectors(void) {
+	return W25Qxx_SectorCount();
+}
+
+bool W25Q::eraseSector(uint16_t sector) {
+	return (W25Qxx_RET_OK == W25Qxx_Erase(sector, 1));
 }
 
 bool W25Q::mount(void) {

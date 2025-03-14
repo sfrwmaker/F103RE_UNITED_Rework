@@ -94,7 +94,7 @@ void MSETUP::init(void) {
 	safe_iron_mode	= pCFG->isSafeIronMode();
 	lang_index		= pCore->nls.languageIndex();
 	num_lang		= pCore->nls.numLanguages();
-	dspl_bright		= pCFG->getDsplBrightness();		// Brightness [0-100]
+	dspl_bright		= pCFG->getDsplBrightness();		// Brightness [1-255]
 	dspl_rotation	= pCFG->getDsplRotation();
 	set_param		= 0;
 	uint8_t menu_len = pCore->dspl.menuSize(MSG_MENU_SETUP);
@@ -177,7 +177,7 @@ MODE* MSETUP::loop(void) {
 				case MM_SAVE:									// save
 				{
 					pD->clear();
-					pD->errorMessage(MSG_SAVE_ERROR, 100);
+					pD->errorMessage(true, MSG_SAVE_ERROR, 100);
 					pCFG->umount();								// Prepare to load font data, clear status of the configuration file
 					pD->dim(50);								// decrease the display brightness while saving configuration data
 					// Perhaps, we should change the language: load messages and font
