@@ -3,6 +3,9 @@
  *
  *  2024 NOV 16
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2025 MAR 06, v.1.01
+ *  	Added erasingFlash() to implement flash erasing procedure
+ *  	added bool error parameter to the DSPL::errorMessage()
  */
 
 #ifndef DISPLAY_H_
@@ -88,11 +91,12 @@ class DSPL : public tft_ILI9341, public BRGT, public GRAPH, public NLS_MSG {
 		void		pidShowInfo(uint16_t period, uint16_t loops);
 		void		pidShowPwr(uint16_t power);
 		void		pidDestroyData(void);
-		void		errorMessage(t_msg_id err_id, uint16_t y);
+		void		errorMessage(bool error, t_msg_id err_id, uint16_t y);
 		void		showDialog(t_msg_id msg_id, uint16_t y, bool yes, const char *parameter = 0);
 		void 		showVersion(void);
 		void		debugShow(uint16_t data[11], bool iron_on, bool gun_on, bool iron_connected, bool gun_connected, bool gun_reed, bool type_jbc, bool tilt_stby, bool jbc_change, bool gtim_ok);
 		void		debugMessage(const char *msg, uint16_t x, uint16_t y, uint16_t len);
+		void		erasingFlash(uint16_t cur_sector, uint16_t total_sectors, bool show_total);
 	private:
 		void		checkBox(BITMAP &bm, uint16_t x, uint8_t size, bool checked);
 		void		drawTemp(uint16_t temp, uint16_t x, uint16_t y, bool celsius);

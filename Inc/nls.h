@@ -3,6 +3,12 @@
  *
  *  2024 NOV 16, v.1.00
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2025 MAR 06, v.1.01
+ *  	Added 'erase FLASH?', 'FLASH erase error', 'FLASH format complete' and 'INFO' messages
+ *  	Changed message 'FLASH debug' to 'FLASH erase'
+ *  	Changed all 'EEPROM' to 'FLASH'
+ *  	Removed the messages that no longer used: 'No directory', 'Delete file?', 'Failed mount SD', 'NO config file',
+ *  	'No lang. specified', 'No memory', 'Inconsistent lang'
  */
 
 #ifndef MSG_NLS_H_
@@ -14,10 +20,10 @@ typedef enum e_msg { MSG_MENU_MAIN, MSG_MENU_SETUP = 10, MSG_MENU_T12 = 10+14, M
 					 MSG_MENU_CALIB = 10+14+11+6+7, MSG_PID_MENU = 10+14+11+6+7+5, MSG_FLASH_MENU = 10+14+11+6+7+5+5,
 					MSG_ON = 10+14+11+6+7+5+5+5, MSG_OFF, MSG_FAN, MSG_PWR,
 					MSG_REF_POINT, MSG_REED, MSG_TILT, MSG_DEG, MSG_MINUTES, MSG_SECONDS,
-					MSG_CW, MSG_CCW, MSG_SET, MSG_ERROR, MSG_TUNE_PID, MSG_SELECT_TIP,
-					MSG_EEPROM_READ, MSG_EEPROM_WRITE, MSG_EEPROM_DIRECTORY, MSG_NO_TIP_LIST, MSG_FORMAT_EEPROM, MSG_FORMAT_FAILED,
-					MSG_SAVE_ERROR, MSG_HOT_AIR_GUN, MSG_T12_IRON, MSG_JBC_IRON, MSG_SAVE_Q, MSG_YES, MSG_NO, MSG_DELETE_FILE, MSG_FLASH_DEBUG,
-					MSG_SD_MOUNT, MSG_SD_NO_CFG, MSG_SD_NO_LANG, MSG_SD_MEMORY, MSG_SD_INCONSISTENT, MSG_DSPL_IPS, MSG_DSPL_TFT, MSG_GUN_STBY,
+					MSG_CW, MSG_CCW, MSG_SET, MSG_INFO, MSG_ERROR, MSG_TUNE_PID, MSG_SELECT_TIP,
+					MSG_FLASH_READ_ERR, MSG_FLASH_WRITE_ERR, MSG_FLASH_ERASE_ERR, MSG_FORMAT_COMPLETE, MSG_NO_TIP_LIST, MSG_DO_FORMAT_FLASH,
+					MSG_DO_ERASE_FLASH, MSG_FORMAT_FAILED, MSG_SAVE_ERROR, MSG_HOT_AIR_GUN, MSG_T12_IRON, MSG_JBC_IRON, MSG_SAVE_Q, MSG_YES, MSG_NO,
+					MSG_FLASH_ERASE, MSG_DSPL_IPS, MSG_DSPL_TFT, MSG_GUN_STBY,
 					MSG_UPDATE_FLASH,
 					MSG_LAST,
 					MSG_ACTIVATE_TIPS 	= MSG_MENU_MAIN + 3,
@@ -127,14 +133,17 @@ class NLS_MSG {
 				{"cw",				std::string()},
 				{"ccw",				std::string()},
 				{"Set:",			std::string()},
+				{"INFO",			std::string()},
 				{"ERROR",			std::string()},
 				{"Tune PID",		std::string()},
 				{"Select tip",		std::string()},
 				{"FLASH read error",		std::string()},
 				{"FLASH write error",		std::string()},
-				{"No directory",			std::string()},
+				{"FLASH erase error",		std::string()},
+				{"FLASH format complete",	std::string()},
 				{"No Tip list",				std::string()},
 				{"format FLASH?",			std::string()},
+				{"erase FLASH?",			std::string()},
 				{"Failed to format FLASH",	std::string()},
 				{"saving configuration",	std::string()},
 				{"Hot Gun",					std::string()},
@@ -143,13 +152,7 @@ class NLS_MSG {
 				{"Save?",					std::string()},
 				{"Yes",						std::string()},
 				{"No",						std::string()},
-				{"Delete file?",			std::string()},
-				{"FLASH debug",				std::string()},
-				{"Failed mount SD",			std::string()},
-				{"NO config file",			std::string()},
-				{"No lang. specified",		std::string()},
-				{"No memory",				std::string()},
-				{"Inconsistent lang",		std::string()},
+				{"FLASH erase",				std::string()},
 				{"IPS",						std::string()},
 				{"TFT",						std::string()},
 				{"standby",					std::string()},

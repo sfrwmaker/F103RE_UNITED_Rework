@@ -3,6 +3,8 @@
  *
  *  2023 OCT 19
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2025 MAR 05, v.1.01
+ *  	Added sectors() and eraseSector() to implement the flash debug procedures
  *
  */
 
@@ -21,6 +23,8 @@ class W25Q {
 		W25Q(void)			{ }
 		FLASH_STATUS	init(void);								// Initialize flash, read tip configuration
 		bool			reset();								// Initialize flash, re-check flash size
+		uint16_t		sectors(void);
+		bool			eraseSector(uint16_t sector);
 		bool			mount(void);
 		void			umount(void);
 		void			close(void);

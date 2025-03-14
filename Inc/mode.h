@@ -1,10 +1,14 @@
 /*
  * mode.h
  *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- * 2024 DEC 15
+ *  2024 DEC 15
  * 		Added MCALIB::ref_ready_to constant
+ * 	2025 MAR 06, v.1.01
+ * 		Added MABOUT::flash_erase, modified the constructor
+ * 		Added FERASE class to implement the flash erasing procedure
+ * 		Removed the MTACT::MFAIL and MACT::setFail()
  */
 
 #include <vector>
@@ -162,29 +166,31 @@ class MFAIL : public MODE {
 		MFAIL(HW *pCore) : MODE(pCore)						{ }
 		virtual void	init(void);
 		virtual MODE*	loop(void);
-		void			setMessage(const t_msg_id msg, const char *parameter = 0);
+		void			setMessage(const t_msg_id msg, bool error = true, const char *parameter = 0);
 	private:
-		char			parameter[20] = {0};
+		bool			error	= true;
 		t_msg_id		message	= MSG_LAST;
+		char			parameter[20] = {0};
 };
 
 //---------------------- The Activate tip mode: select tips to use ---------------
 class MTACT : public MODE {
 	public:
-		MTACT(HW *pCore) : MODE(pCore)						{ }
+		MTACT(HW *pCore, MFAIL *pFail) : MODE(pCore)		{ this->pFail = pFail;	}
 		virtual void	init(void);
 		virtual MODE*	loop(void);
-		void			setFail(MFAIL *pf)					{ pFail = pf; }
 	private:
-		MFAIL			*pFail		= 0;					// Pointer to fail mode allows to display error message correctly
+		MFAIL			*pFail;
 };
 
 //---------------------- The About dialog mode. Show about message ---------------
 class MABOUT : public MODE {
 	public:
-		MABOUT(HW *pCore) : MODE(pCore)						{ }
+		MABOUT(HW *pCore, MODE *u_press) : MODE(pCore)		{ flash_erase = u_press; }
 		virtual void	init(void);
 		virtual MODE*	loop(void);
+	private:
+		MODE	*flash_erase;
 };
 
 
@@ -208,11 +214,26 @@ class MDEBUG : public MODE {
 //---------------------- The Flash format mode: Confirm and format the flash ----
 class FFORMAT : public MODE {
 	public:
-		FFORMAT(HW *pCore) : MODE(pCore)					{ }
+		FFORMAT(HW *pCore, MFAIL *pFail) : MODE(pCore)		{ this->pFail = pFail; }
 		virtual void	init(void);
 		virtual MODE*	loop(void);
 	private:
-		uint8_t p = 2;										// Make sure the message sill be displayed for the first time in the loop
+		MFAIL			*pFail;
+		uint8_t 		p = 2;								// Make sure the message will be displayed for the first time in the loop
+};
+
+//----------- The Flash full erase mode: Confirm, erase and format the flash ----
+class FERASE : public MODE {
+	public:
+		FERASE(HW *pCore, MFAIL *pFail) : MODE(pCore)		{ this->pFail = pFail; }
+		virtual void	init(void);
+		virtual MODE*	loop(void);
+	private:
+		MFAIL			*pFail;
+		uint8_t 		p = 2;								// Make sure the message will be displayed for the first time in the loop
+		bool			dialog = true;						// Current working phase: dialog mode or flash erasing mode
+		uint16_t		sectors = 0;						// The number of sectors on the FLASH
+		uint16_t		cur_sector = 0;						// The current erasing sector
 };
 
 #endif
