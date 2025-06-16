@@ -14,6 +14,7 @@ Revision history
 2025 MAR 14 v.1.01
   * Added erasing flash procedure allowing completely format the data store and check it
   * Fixed bug in adjusting the display brightness
+
 2025 JUN 16 v.1.02
   * Changed approach to supply power to the Hot Air Gun
   * Changed PID parameters of the Hot Air Gun
