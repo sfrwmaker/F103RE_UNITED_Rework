@@ -1,8 +1,10 @@
 /*
  * pid.cpp
  *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
+ * 	2025 JUN 03, v1.02
+ * 		Changed the PID::resetPID(). Do not initialize temp_h0 with the current temperature
  */
 
 #include "pid.h"
@@ -45,7 +47,7 @@ void PID::init(uint16_t ms, uint8_t denominator_p, bool heat_force) { // PID par
 }
 
 void PID::resetPID(uint16_t t) {
-	temp_h0 		= t;
+	temp_h0 		= 0;
 	temp_h1 		= t;
 	power  			= 0;
 }

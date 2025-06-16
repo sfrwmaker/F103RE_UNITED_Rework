@@ -29,6 +29,8 @@ extern DMA_HandleTypeDef hdma_adc3;
 
 extern DMA_HandleTypeDef hdma_spi3_tx;
 
+extern DMA_HandleTypeDef hdma_tim3_ch4_up;
+
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
@@ -411,10 +413,30 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     /**TIM3 GPIO Configuration
     PD2     ------> TIM3_ETR
     */
-    GPIO_InitStruct.Pin = AC_ZZERO_Pin;
+    GPIO_InitStruct.Pin = AC_ZERO_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(AC_ZZERO_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(AC_ZERO_GPIO_Port, &GPIO_InitStruct);
+
+    /* TIM3 DMA Init */
+    /* TIM3_CH4_UP Init */
+    hdma_tim3_ch4_up.Instance = DMA1_Channel3;
+    hdma_tim3_ch4_up.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_tim3_ch4_up.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_tim3_ch4_up.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_tim3_ch4_up.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_tim3_ch4_up.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_tim3_ch4_up.Init.Mode = DMA_CIRCULAR;
+    hdma_tim3_ch4_up.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_tim3_ch4_up) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    /* Several peripheral DMA handle pointers point to the same DMA handle.
+     Be aware that there is only one channel to perform all the requested DMAs. */
+    __HAL_LINKDMA(htim_base,hdma[TIM_DMA_ID_CC4],hdma_tim3_ch4_up);
+    __HAL_LINKDMA(htim_base,hdma[TIM_DMA_ID_UPDATE],hdma_tim3_ch4_up);
 
     /* TIM3 interrupt Init */
     HAL_NVIC_SetPriority(TIM3_IRQn, 0, 0);
@@ -635,7 +657,11 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
     */
     HAL_GPIO_DeInit(GUN_POWER_GPIO_Port, GUN_POWER_Pin);
 
-    HAL_GPIO_DeInit(AC_ZZERO_GPIO_Port, AC_ZZERO_Pin);
+    HAL_GPIO_DeInit(AC_ZERO_GPIO_Port, AC_ZERO_Pin);
+
+    /* TIM3 DMA DeInit */
+    HAL_DMA_DeInit(htim_base->hdma[TIM_DMA_ID_CC4]);
+    HAL_DMA_DeInit(htim_base->hdma[TIM_DMA_ID_UPDATE]);
 
     /* TIM3 interrupt DeInit */
     HAL_NVIC_DisableIRQ(TIM3_IRQn);

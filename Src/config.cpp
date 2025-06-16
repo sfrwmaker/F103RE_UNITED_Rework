@@ -1,12 +1,12 @@
 /*
  * config.cpp
  *
- *  Created on: 15 aug. 2019.
- *      Author: Alex
- *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- *
+ * 	2025 JUN 12, v.1.02
+ * 		Changed default PID coefficients of the Hot Air Gun in CFG_CORE::setPIDdefaults() method
+ * 		Fixed bug in CFG_CORE::tempMax() returned wrong maximum temperature of the Hot Air Gun
+ * 		Fixed bug in CFG::tipList() to skip wrong type tip and generate the correct tip list in tip selection mode
  */
 
 #include <stdlib.h>
@@ -346,14 +346,13 @@ uint8_t	CFG::tipList(uint8_t current, TIP_ITEM list[], uint8_t list_len, bool ac
 		}
 	}
 	uint8_t loaded = 0;
-	if (tip_index < 0) tip_index = 0;						// Ensure the tip index is not negative inside next loop, because the tip_table will be read
+	if (tip_index <= 0) tip_index = 1;						// Ensure the tip index is not negative inside next loop, because the tip_table will be read. Skip Hot Air Gun 'tip' (0)
 	for (; tip_index < tips.total(); ++tip_index) {
-		if (tip_index == 0) continue;						// Skip Hot Air Gun 'tip'
 		RADIX r = tips.radix(tip_index);					// The tip name
 		if (active_only && !(r.isActivated()))
 			continue;										// Skip not activated tip (if we should draw activated tips only)
-		if (manual_change && dev_type != hardwareType(r))
-			continue;										// Skip tip of wrong hardware type
+		if (dev_type != d_unknown && dev_type != hardwareType(r))
+			continue;										// Skip tip of wrong hardware type in tip selection mode only
 		if (!manual_change && dev_type == d_t12 && r.type() == TIP_NONE)
 			continue;										// Skip not native T12 tip
 		list[loaded].tip_index	= tip_index;
@@ -459,10 +458,9 @@ uint16_t CFG_CORE::tempMax(tDevice dev, bool force_celsius) {
 
 uint16_t CFG_CORE::tempMax(tDevice dev, bool celsius, bool safe_iron_mode) {
 	uint16_t t = gun_temp_maxC;
-	if (safe_iron_mode)
-		t = iron_temp_maxC_safe;
-	else
-		t = iron_temp_maxC;
+	if (dev == d_t12 || dev == d_jbc) {
+		t = safe_iron_mode?iron_temp_maxC_safe:iron_temp_maxC;
+	}
 	if (!celsius) {											// Convert to Fahrenheit
 		t = celsiusToFahrenheit(t);
 		t += 10 - t % 10;									// Round right to be multiplied by 10
@@ -572,9 +570,9 @@ void CFG_CORE::setPIDdefaults(void) {
 	pid.jbc_Kp			= 1479;
 	pid.jbc_Ki			=   59;
 	pid.jbc_Kd			=  507;
-	pid.gun_Kp			=  200;
-	pid.gun_Ki			=   64;
-	pid.gun_Kd			=  195;
+	pid.gun_Kp			=  100; // 200
+	pid.gun_Ki			=   32; // 64
+	pid.gun_Kd			=  200; // 195
 };
 
 // PID parameters: Kp, Ki, Kd for smooth work, i.e. tip calibration

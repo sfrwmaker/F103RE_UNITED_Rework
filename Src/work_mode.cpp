@@ -1,8 +1,10 @@
 /*
  * work_mode.cpp
  *
- * 2024 NOV 16, v1.00
+ *  2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
+ * 	2025 JUN 09, v.1.02
+ * 		Modified the MWORK::loop() and MWORK::manageEncoders() to save the preset temperature after save_preset_to timeout the encoder was rotated
  *
  */
 
@@ -158,6 +160,12 @@ MODE* MWORK::loop(void) {
 
 	adjustPresetTemp();
 	drawStatus(iron_phase, ambient);
+
+	// Check to save preset temperature
+	if (enc_changed_ms > 0 && enc_changed_ms + save_preset_to <= HAL_GetTick()) {
+		enc_changed_ms = 0;
+		pCFG->saveConfig();
+	}
 	return this;
 }
 
@@ -465,6 +473,7 @@ bool MWORK::manageEncoders(void) {
     		}
     	}
     	update_screen = 0;
+    	enc_changed_ms = HAL_GetTick();						// The preset temperature just has been changed
     }
 
     temp_set_h		= pCore->l_enc.read();
@@ -510,7 +519,8 @@ bool MWORK::manageEncoders(void) {
 			fanSpeed(true);
 			return_to_temp	= HAL_GetTick() + edit_fan_timeout;
 		}
-		pCFG->saveGunPreset(t, f);
+		pCFG->saveGunPreset(t, f);							// Update the preset temperature in memory only. To save config to the flash, use saveConfig()
+		enc_changed_ms = HAL_GetTick();						// The preset temperature just has been changed
     }
 
     // The fan speed modification mode has 'return_to_temp' timeout

@@ -6,6 +6,10 @@
  * 	2025 MAR 06, v.1.01
  * 		Implemented flash erase procedure, see FERASE class initialization
  * 		Changed class initialization because the MFAIL pointer now is inside the HW class
+ * 	2025 JUN 03, v.1.02
+ * 		Changed the algorithm how the Hot Air Gun managed, see detailed description below
+ * 		Changed the TIM3 initialization
+ * 		Created calculateGunPowerData() routine
  *
  *  Hardware configuration:
  *  Analog pins:
@@ -20,9 +24,8 @@
  *  	  TIM2_CH3, Output compare (1) to check current
  *  	  TIM2_CH4, Output compare (1986) to check temperature
  *  TIM3:
- *  D2	- TIM3_ETR, AC zero signal read - clock source
- *  	  TIM3_CH1, Output compare (97) to calculate power to the Hot Air Gun
- *  B1	- TIM3_CH4, Hot Air Gun power [0-99]
+ *  D2	- TIM3_ETR, AC zero signal read - Timer reset signal
+ *  B1	- TIM3_CH4, Hot Air Gun power [0-max_gun_pwr]
  *  TIM4:
  *  B6	- TIM4_CH1, I_ENC_L
  *  B7	- TIM4_CH2, I_ENC_R
@@ -34,6 +37,19 @@
  *  TIM5:
  *  PA3	- TIM5_CH4, TFT brightness
  *
+ *
+ *  How the Hot Air Gun powered.
+ *  The AC power outlet frequency is 50 Hz in Europe and 60 Hz in USA. As soon as AC signal after full diode rectifier has a positive half-period shapes its frequency is 100 Hz or 120 Hz respectively.
+ *  This signal is coming from the power board as a AC_ZERO interrupts. The TIM3 timer is clocked by the internal clock and has period of 25.600 mS (the timer counter ticks from 0 to 255).
+ *  The period between two AC_ZERO signals is 10 mS (8.33 ms in USA). The AC_ZERO signal resets the TIM3 counter, so the TIM3 counter never reached its period for sure.
+ *  To avoid the AC source distortion, the TRIAC in the power board are managed to propagate whole halh-period shape or to completely block it.
+ *  To manage the power of the Hot Air Gun, the controller uses a means of 120 half-period shapes (1.2 secs in Europe or 1 sec is USA) because the number 120 has a multiple dividers: 2,3,4,5,6, etc.
+ *  So it easy to distribute many active half-period shapes from 0 to 120 in 120-element array evenly. 120 is a period of checking the Hot Air Gun temperature and calculate the required power to be applied.
+ *  As soon as required power calculated (0-120 half-period shapes) this number of half-period shapes is distributed into 120 elements DMA buffer (gun_pwr) by the calculateGunPowerData() routine.
+ *  This DMA buffer then sent to the TIM3->CHANNEL4 to manage the PWM signal to activate the TRIAC on the Power board. Active pulse encoded as 70 (TIM3 ticks) and inactive pulse is encoded as 0.
+ *  As mentioned before, the TIM3 timer counts from 0 to 100 (or 83 in USA) before AC_ZERO interrupt reset the timer and the 70-ticks long active pulse activates the TRIAC at the AV wave beginning
+ *  and goes down before the sine pulse ends, but the TRIAC keeps open until the AC sine wave goes through the zero, so the half-period shape will propagate to the Hot Air Gun completely.
+ *  From the other side, the TIM3 PWM channel goes down at 70-th timer tick and power-off the Hot Air Gun at the beginning of the next half-period shape for sure.
  */
 
 #include <math.h>
@@ -47,6 +63,7 @@
 // Activated ADC Ranks Number (hadc1.Init.NbrOfConversion)
 #define ADC1_CUR 			(5)
 #define ADC3_TEMP			(5)
+#define MAX_GUN_POWER		(120)
 
 extern ADC_HandleTypeDef	hadc1;
 extern ADC_HandleTypeDef	hadc3;
@@ -61,13 +78,12 @@ typedef enum { ADC_IDLE, ADC_CURRENT, ADC_TEMP } t_ADC_mode;
 volatile static t_ADC_mode	adc_mode = ADC_IDLE;
 volatile static uint16_t	adc1_buff[ADC1_CUR];			// Current data: IRON, FAN, GUN temperature, VREFint, INTERNAL_temperature
 volatile static uint16_t	adc3_buff[ADC3_TEMP];			// Temperature data: IRON * 4, AMBIENT
-volatile static	uint32_t	tim3_cntr	= 0;				// Previous value of TIM3 counter (AC_ZERO). Using to check the TIM3 value changing
-volatile static	bool		ac_sine		= false;			// Flag indicating that TIM3 is driven by AC power interrupts on AC_ZERO pin
+volatile static uint32_t	gtim_last_ms	= 0;			// Time when the last AC_ZERO interrupt received
+volatile static	bool		ac_sine		= false;			// Flag indicating that TIM3 has received the external interrupt on AC_ZERO pin
+volatile static uint8_t		gun_pwr[MAX_GUN_POWER*2] = {0};	// The HOT GUN power PWM buffer
 volatile static bool		adc_manual	= false;			// Flag indicating that we have to manage ADC DMA buffer manually
 static 	EMP_AVERAGE			gtim_period;					// gun timer period (ms)
 static  uint16_t  			max_iron_pwm	= 0;			// Max value should be less than TIM3.CH3 value by 40. Will be initialized later
-volatile static uint32_t	gtim_last_ms	= 0;			// Time when the gun timer became zero
-const static	uint16_t  	max_gun_pwm		= 99;			// TIM1 period. Full power can be applied to the HOT GUN
 const static	uint32_t	check_sw_period = 100;			// IRON switches check period, ms
 
 static HW		core;										// Hardware core (including all device instances)
@@ -100,24 +116,63 @@ uint16_t	gtimPeriod(void)	{ return gtim_period.read();	}
 // Synchronize TIM2 timer to AC power. The main timer managing IRON and FAN
 static uint16_t syncAC(uint16_t tim_cnt) {
 	uint32_t to = HAL_GetTick() + 300;						// The timeout
-	uint16_t nxt_tim3	= TIM3->CNT + 2;					// TIM3 is clocked by AC zero crossing signal, its period is 99.
-	if (nxt_tim3 > 99) nxt_tim3 -= 99;
 	while (HAL_GetTick() < to) {							// Prevent hang
-		if (TIM3->CNT == nxt_tim3) {
+		if (TIM3->CNT == 0) {								// AC_ZERO interrupt restarts the TIM# timer
 			TIM2->CNT = tim_cnt;							// Synchronize TIM2 to AC power zero crossing signal
 			break;
 		}
 	}
 	// Checking the TIM2 has been synchronized
 	to = HAL_GetTick() + 300;
-	nxt_tim3 = TIM3->CNT + 2;
-	if (nxt_tim3 > 99) nxt_tim3 -= 99;
 	while (HAL_GetTick() < to) {
-		if (TIM3->CNT == nxt_tim3) {
+		if (TIM3->CNT == 0) {
 			return TIM2->CNT;
 		}
 	}
 	return TIM2->ARR+1;										// This value is bigger than TIM2 period, the TIM2 has not been synchronized
+}
+
+// Calculates the PWM value data for TIMER to supply power to the heater
+// Each AC-outlet peak (100 Hz in Russia and 60 Hz in US) resets the timer and make the timer to supply power
+// The PWM values can be in two states: supply power for the half-period (peak) or not
+static void calculateGunPowerData(volatile uint8_t *data, uint8_t max_power, uint8_t pwr) {
+	const uint8_t active_pulse = 70;
+	uint8_t on	= active_pulse;
+	uint8_t off = 0;
+	if (pwr > (max_power >> 1)) {							// In case the pwr is greater than half of maximum power, calculate positions of "empty" peaks
+		if (pwr > max_power) pwr = max_power;
+		on	= 0;
+		off = active_pulse;
+		pwr = max_power - pwr;
+	}
+	if (pwr == 0) {											// No power supplied at all, empty all PWM slots
+		for (uint8_t i = 0; i < max_power; ++i)
+			data[i] = off;
+		return;
+	}
+	uint8_t slots	= max_power / pwr;						// Number of PWM slots per each "powered" peak (0 .. max_power/2)
+	uint8_t remain	= max_power % pwr;						// The division remainder
+	uint8_t pos		= slots >> 1;							// Put the "powered" peak in to the center of the slot
+	int8_t extra	= 0;									// Extra position remainder (extra/pwr)
+	for (uint8_t i = 0; i < max_power; ++i) {
+		if (i < pos) {
+			data[i] = off;
+		} else {
+			data[i] = on;
+			pos += slots;
+			extra += remain;
+			if (extra + (remain>>1) >= pwr) {
+				++pos;
+				extra -= pwr;
+			}
+		}
+	}
+}
+
+static void powerOffGun(void) {
+	for (uint16_t i = 0; i < MAX_GUN_POWER * 2; ++i) {
+		gun_pwr[i] = 0;
+	}
 }
 
 extern "C" void setup(void) {
@@ -147,8 +202,8 @@ extern "C" void setup(void) {
 
 	CFG_STATUS cfg_init = core.init(iron_temp, gun_temp, ambient, vref, t_mcu);
 
-	HAL_TIM_PWM_Start(&htim3, 	TIM_CHANNEL_4);				// PWM signal of Hot Air Gun
-	HAL_TIM_OC_Start_IT(&htim3, TIM_CHANNEL_1);				// Calculate power of Hot Air Gun interrupt
+	HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (const uint32_t*)gun_pwr, MAX_GUN_POWER*2); // PWM signal of Hot Air Gun
 	HAL_TIM_PWM_Start(&htim2, 	TIM_CHANNEL_1);				// PWM signal of the IRON
 	HAL_TIM_PWM_Start(&htim2, 	TIM_CHANNEL_2);				// PWM signal of the FAN
 	HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_3);				// Check the current through the IRON and FAN
@@ -201,7 +256,7 @@ extern "C" void setup(void) {
 				break;
 		}
 	}
-	syncAC(1500);											// Synchronize TIM5 timer to AC power. Parameter is TIM5 counter value when TIM1 become zero
+	syncAC(0);												// Synchronize TIM2 timer to AC power. Parameter is TIM2 counter value when AC_ZERO interrupt occurred
 	uint8_t br = core.cfg.getDsplBrightness();
 	core.dspl.BRGT::set(br);
 	// Turn-on the display backlight immediately in the debug mode
@@ -213,7 +268,6 @@ extern "C" void setup(void) {
 }
 
 extern "C" void loop(void) {
-	static uint32_t AC_check_time	= 0;					// Time in ms when to check TIM3 is running
 	static uint32_t	check_sw		= 0;					// Time when check iron switches status (ms)
 
 	if (HAL_GetTick() > check_sw) {
@@ -233,7 +287,7 @@ extern "C" void loop(void) {
 		core.buzz.doubleBeep();
 		core.iron.switchPower(false);
 		TIM2->CCR1	= 0;									// Switch-off the IRON power immediately
-		TIM3->CCR2  = 0;
+		powerOffGun();
 		pMode->clean();
 		pMode = new_mode;
 		pMode->init();
@@ -246,17 +300,10 @@ extern "C" void loop(void) {
 		core.hotgun.switchPower(false);
 		core.iron.setCheckPeriod(0);						// Stop checking IRON
 		TIM2->CCR1	= 0;									// Switch-off the IRON power immediately
-		TIM3->CCR2	= 0;
+		powerOffGun();
 		pMode->clean();
 		pMode = new_mode;
 		pMode->init();
-	}
-
-	// If TIM3 counter has been changed since last check, we received AC_ZERO events from AC power
-	if (HAL_GetTick() >= AC_check_time) {
-		ac_sine		= (TIM3->CNT != tim3_cntr);
-		tim3_cntr	= TIM3->CNT;
-		AC_check_time = HAL_GetTick() + 41;					// 50Hz AC line generates 100Hz events. The pulse period is 10 ms
 	}
 
 	// Adjust display brightness
@@ -293,23 +340,13 @@ static bool adcStartTemp(void) {							// Check the temperature by ADC1 & ADC2
 
 /*
  * IRQ handler
- * on TIM3 Output channel #1 to calculate required power for Hot Air Gun
  * on TIM2 Output channel #3 to read the current through the IRON and FAN
  * also check that TIM3 counter changed driven by AC_ZERO interrupt
  * on TIM2 Output channel #4 to read the IRON and HOt Air Gun temperatures
  */
 
 extern "C" void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim) {
-	if (htim->Instance == TIM3 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
-		uint16_t gun_power	= core.hotgun.power();
-		if (gun_power > max_gun_pwm) gun_power = max_gun_pwm;
-		TIM3->CCR4	= gun_power;							// Apply Hot Air Gun power
-		uint32_t n = HAL_GetTick();
-		if (ac_sine && gtim_last_ms > 0) {
-			gtim_period.update(n - gtim_last_ms);
-		}
-		gtim_last_ms = n;
-	} else if (htim->Instance == TIM2) {
+	if (htim->Instance == TIM2) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
 			adcStartCurrent();
 		} else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4) {
@@ -338,7 +375,7 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 		if (TIM2->CCR2 > 1) {								// The Hot Air Gun FAN has been powered
 			core.hotgun.updateCurrent(adc1_buff[1]);		// adc1_buff[1] is the current through the FAN
 		}
-		core.hotgun.updateTemp(adc1_buff[2]);				// adc1_buff[2] is the Hot Air Gun temperature
+		core.hotgun.updateTemp(adc1_buff[2]);			// adc1_buff[2] is the Hot Air Gun temperature
 		core.updateIntTemp(adc1_buff[3], adc1_buff[4]);		// adc1_buff[4] is vrefint, adc1_buff[5] is the MCU internal temperature
 	} else if (hadc->Instance == ADC3) {					// Ambient temperature checking
 		// Check the IRON temperature and calculate the required power
@@ -356,11 +393,43 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 }
 
 /*
- * IRQ handler for buzzer note period
+ * IRQ handler for buzzer note period (TIM6)
  */
 extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	if (htim->Instance != TIM6) return;
-	core.buzz.playSongCB();
+	if (htim->Instance == TIM3) {
+		uint32_t tm		= HAL_GetTick();
+		ac_sine			= gtim_last_ms + 30 > tm;			// Last TIM3 external interrupt was less than 30 ms before. 50Hz outlet interrupt period is 10 ms
+		if (ac_sine && gtim_last_ms > 0) {
+			gtim_period.update((tm - gtim_last_ms) * 100);
+		}
+		gtim_last_ms	= tm;
+	} else if (htim->Instance == TIM6) {
+		core.buzz.playSongCB();
+	}
+}
+
+void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim) {
+	if (htim->Instance != TIM3) return;
+	uint16_t gun_power	= 0;								// First half of the pwr_buffer has been sent, calculate next buffer values
+	if (ac_sine)
+		gun_power	= core.hotgun.power();
+	if (gun_power) {
+		calculateGunPowerData(&gun_pwr[MAX_GUN_POWER], MAX_GUN_POWER, gun_power);
+	} else {
+		powerOffGun();
+	}
+}
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+	if (htim->Instance != TIM3) return;
+	uint16_t gun_power	= 0;								// Second half of the pwr_buffer has been sent, calculate next buffer values
+	if (ac_sine)
+		gun_power	= core.hotgun.power();
+	if (gun_power) {
+		calculateGunPowerData(gun_pwr, MAX_GUN_POWER, gun_power);
+	} else {
+		powerOffGun();
+	}
 }
 
 extern "C" void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc) 				{ }

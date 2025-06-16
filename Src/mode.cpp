@@ -6,7 +6,8 @@
  * 	2025 MAR 05
  * 		Modified the MABOUT::loop() to call the flash erasing procedure
  * 		Added FERASE class to implement the flash erasing procedure
- *
+ *  2025 JUN 12, v.1.02
+ *  	Modified the MDEBUG::loop() to manage the fan manually
  */
 
 #include <stdio.h>
@@ -257,7 +258,7 @@ void MCALIB::init(void) {
 	update_screen 	= 0;
 	tip_temp_max 	= int_temp_max / 2;							// The maximum possible temperature defined in iron.h
 	manual_power	= 0;										// The fixed power for the preparation phase
-	pCore->u_enc.reset(manual_power, 0, max_manual_power, 1, 5, false);
+	pCore->u_enc.reset(manual_power, 0, (dev_type==d_jbc)?max_pwr_jbc:max_pwr_t12, 1, 5, false);
 	const char *calibrate = pCore->dspl.msg(MSG_MENU_CALIB);	// "Calibrate <tip name>"
 	uint8_t len = strlen(calibrate);
 	if (len > 19) len = 19;										// Limit maximum string length
@@ -1359,6 +1360,7 @@ void MDEBUG::init(void) {
 	pCore->dspl.clear();
 	pCore->dspl.drawTitleString("Debug info");
 	gun_is_on		= false;
+	fan_is_on		= false;
 	iron_on			= false;
 	update_screen = 0;
 }
@@ -1402,15 +1404,30 @@ MODE* MDEBUG::loop(void) {
 			pHG->setFan(old_fp);
 			pHG->fixPower(gun_power);
 			gun_is_on = true;
+			fan_is_on = true;
 		}
 	} else {
 		if (gun_is_on) {
 			pHG->fixPower(0);
 			gun_is_on = false;
+			fan_is_on = false;
 		}
 	}
 
-	if (pCore->l_enc.buttonStatus() == 2) {					// The Hot Air Gun button was pressed for a long time, exit debug mode
+	// Manage the Hot Air Gun encoder button
+	uint8_t low_button = pCore->l_enc.buttonStatus();
+	if (low_button == 1) {									// The Hot Air Gun button was shortly pressed, toggle the fan
+		if (pHG->isCold()) {								// The Hot Air Gun is in 'OFF' mode
+			if (!fan_is_on) {
+				fan_is_on = true;							// Turn the Hot Air Gun fan ON
+				pHG->setFan(pwr);
+				pHG->fanControl(fan_is_on);
+			} else {
+				fan_is_on = false;							// Turn the Hot Air Gun fan ON
+				pHG->fanControl(fan_is_on);
+			}
+		}
+	} else if (low_button == 2) {							// The Hot Air Gun button was pressed for a long time, exit debug mode
 	   	return mode_lpress;
 	}
 

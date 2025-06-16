@@ -1,9 +1,15 @@
 /*
  * gun.cpp
  *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- *
+ * 	2025 JUN 11, v.1.02
+ * 		Changed first parameter in PID::init(1200, 13, false) call accordingly with new temperature checking period
+ * 		Removed the pidStable() call from HOTGUN::power()
+ *		Changed the method used to check the Hot Air Gun has been cooled by detecting the minimal reached temperature
+ *		and save the time when this temperature was reached. In case the minimal temperature has not been changed in HOTGUN::cooling_to time,
+ *		assume the Hot Air Gun has been cooled, give a little timeout and shutdown the unit.
+ *		Modified the HOTGUN::switchPower() and HOTGUN::power() to implement new cooling method.
  */
 
 #include "gun.h"
@@ -17,15 +23,17 @@ void HOTGUN::init(void) {
 	fix_power		= 0;
 	relay_activated	= false;
 	chill			= false;
-	UNIT::init(sw_avg_len, fan_off_value, fan_on_value, sw_avg_len,	sw_off_value, sw_on_value);
+	UNIT::init(fan_curr_avg_len, fan_off_value, fan_on_value, sw_avg_len, sw_off_value, sw_on_value);
 	safetyRelay(false);										// Completely turn-off the power of Hot Air Gun
 	h_power.length(hot_gun_len);
     h_power.reset();
-    h_temp.length(hot_gun_len);
+    c_temp.length(temp_len);								// The Hot Air Gun current temperature
+    c_temp.reset();
+    h_temp.length(hot_gun_len);								// The Hot Air Gun long-term average temperature
 	h_temp.reset();
 	d_power.length(ec);
 	d_temp.length(ec);
-	PID::init(1000, 13, false);								// Initialize PID for Hot Air Gun, 1Hz. Do not forcible heat!
+	PID::init(1200, 13, false);								// Initialize PID for Hot Air Gun, 1Hz. Do not forcible heat!
     resetPID();
 }
 
@@ -60,6 +68,7 @@ void HOTGUN::fanControl(bool on) {
 
 void HOTGUN::updateTemp(uint16_t value) {
 	if (isConnected()) {
+		c_temp.update(value);
 		int32_t at = h_temp.average(value);
 		int32_t diff	= at - value;
 		d_temp.update(diff*diff);
@@ -73,28 +82,31 @@ void HOTGUN::switchPower(bool On) {
 			if (fanSpeed() == 0) {							// No power supplied to the Fan
 				if (On)	{									// !FAN && On
 					mode = POWER_HEATING;					// Do not activate the safety relay yet, check the fan is blowing first (see HOTGUN::power())
+					min_cool_tm		= 0;
 				}
 			} else {
 				if (On) {
 					if (isConnected()) {					// FAN && On && connected
 						safetyRelay(true);
-						uint16_t t = h_temp.read();
+						uint16_t t = c_temp.read();			// Use current temperature to calculate required power value
 						if (t < temp_set && t + 200 < temp_set) {
 							mode = POWER_HEATING;
 						} else {
 							mode = POWER_ON;
 						}
+						min_cool_tm		= 0;
 					} else {								// FAN && On && !connected
 						shutdown();
 					}
 				} else {
 					if (isConnected()) {					// FAN && !On && connected
-						if (avg_sync_temp < temp_gun_cold) { // FAN && !On && connected && cold
+						if (avg_sync_temp < temp_gun_off) { // FAN && !On && connected && cold
 							shutdown();
 						} else {							// FAN && !On && connected && !cold
 							mode = POWER_COOLING;
-							fan_off_time = HAL_GetTick() + fan_off_timeout;
+							fan_off_time 	= HAL_GetTick() + fan_off_timeout;
 							reach_cold_temp	= false;
+							regMinCoolingTemp();
 						}
 					}
 				}
@@ -108,6 +120,7 @@ void HOTGUN::switchPower(bool On) {
 				mode = POWER_COOLING;
 				fan_off_time = HAL_GetTick() + fan_off_timeout;
 				reach_cold_temp = false;
+				regMinCoolingTemp();
 				if (fast_cooling) {							// Set maximum fan speed in case of fast cooling
 					FAN_TIM.Instance->CCR2 = max_cool_fan;
 				}
@@ -117,14 +130,16 @@ void HOTGUN::switchPower(bool On) {
 			if (fanSpeed()) {
 				if (On) {									// FAN && On
 					mode = POWER_ON;
+					min_cool_tm		= 0;
 				} else {									// FAN && !On
 					if (isConnected()) {					// FAN && !On && connected
-						if (avg_sync_temp < temp_gun_cold) { // FAN && !On && connected && cold
+						if (avg_sync_temp < temp_gun_off) { // FAN && !On && connected && cold
 							shutdown();
 						} else {							// FAN && !On && connected && !cold
 							mode = POWER_COOLING;
 							fan_off_time = HAL_GetTick() + fan_off_timeout;
 							reach_cold_temp = false;
+							regMinCoolingTemp();
 							if (fast_cooling) {				// Set maximum fan speed in case of fast cooling
 								FAN_TIM.Instance->CCR2 = max_cool_fan;
 							}
@@ -144,18 +159,19 @@ void HOTGUN::switchPower(bool On) {
 				if (On) {									// FAN && On
 					if (isConnected()) {					// FAN && On && connected
 						safetyRelay(true);					// Supply AC power to the hot air gun socket
-						uint16_t t = h_temp.read();
+						uint16_t t = c_temp.read();
 						if (t < temp_set && t + 200 < temp_set) {
 							mode = POWER_HEATING;
 						} else {
 							mode = POWER_ON;
 						}
+						min_cool_tm		= 0;
 					} else {								// FAN && On && !connected
 						shutdown();
 					}
 				} else {									// FAN && !On
 					if (isConnected()) {
-						if (avg_sync_temp < temp_gun_cold) { // FAN && !On && connected && cold
+						if (avg_sync_temp < temp_gun_off) { // FAN && !On && connected && cold
 							fan_off_time = HAL_GetTick() + fan_extra_time;
 							reach_cold_temp = true;
 						}
@@ -197,10 +213,10 @@ void HOTGUN::fixPower(uint16_t Power) {
 }
 
 
-// Called from HAL_TIM_OC_DelayElapsedCallback() event handler 1 time per second (see core.cpp)
+// Called by event handlers every 1.2 seconds (see core.cpp)
 uint16_t HOTGUN::power(void) {
-	uint16_t t = h_temp.read();								// Actual Hot Air Gun temperature
-	avg_sync_temp = t;										// Save average temperature to be read as average value
+	uint16_t t		= c_temp.read();						// Actual Hot Air Gun temperature
+	avg_sync_temp	= h_temp.read();						// Save average temperature to be read as average value
 
 	if ((t >= int_temp_max + 100) || (t > (temp_set + 400))) {	// Prevent global over heating
 		if (mode == POWER_ON) chill = true;					// Turn off the power in main working mode only;
@@ -213,6 +229,7 @@ uint16_t HOTGUN::power(void) {
 		case POWER_HEATING:
 			if (!relay_activated && isConnected()) {		// Activate the relay if Hot Gun is connected
 				safetyRelay(true);
+				PID::resetPID();
 			}
 		case POWER_ON:
 			FAN_TIM.Instance->CCR2	= fan_speed;
@@ -224,9 +241,8 @@ uint16_t HOTGUN::power(void) {
 					break;
 				}
 			}
-			if (mode == POWER_HEATING && t >= temp_set + 20) {
+			if (mode == POWER_HEATING && t >= temp_set) {
 				mode = POWER_ON;
-				PID::pidStable(stable);
 			}
 			if (relay_activated) {							// Do supply power to the heater if the relay activated
 				if (relay_ready_cnt > 0) {					// Relay is not ready yet
@@ -268,14 +284,17 @@ uint16_t HOTGUN::power(void) {
 						shutdown();
 						break;
 					}
-					if (avg_sync_temp < temp_gun_cold) {	// FAN && connected && cold
+					if (avg_sync_temp < min_cool_temp)
+						regMinCoolingTemp();
+					if (min_cool_tm && HAL_GetTick() >= min_cool_tm + cooling_to) {	// FAN && connected && min_cool_temp has not been changed during timeout
 						if (!reach_cold_temp) {
 							reach_cold_temp = true;
 							fan_off_time = HAL_GetTick() + fan_extra_time;
+							FAN_TIM.Instance->CCR2 = max_fan_speed;
 						}
 					} else {								// FAN && connected && !cold
-						if (!fast_cooling) {				// Use standard cooling algorithm
-							uint16_t fan = map(avg_sync_temp, temp_gun_cold, temp_set, max_cool_fan, min_fan_speed);
+						if (!fast_cooling && !reach_cold_temp) { // Use standard cooling algorithm
+							uint16_t fan = map(avg_sync_temp, temp_gun_off, temp_set, max_cool_fan, min_fan_speed);
 							fan = constrain(fan, min_fan_speed, max_fan_speed);
 							FAN_TIM.Instance->CCR2 = fan;
 						}
