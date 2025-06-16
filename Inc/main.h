@@ -109,8 +109,8 @@ void Error_Handler(void);
 #define DEBUG_RX_GPIO_Port GPIOA
 #define I_ENC_B_Pin GPIO_PIN_12
 #define I_ENC_B_GPIO_Port GPIOC
-#define AC_ZZERO_Pin GPIO_PIN_2
-#define AC_ZZERO_GPIO_Port GPIOD
+#define AC_ZERO_Pin GPIO_PIN_2
+#define AC_ZERO_GPIO_Port GPIOD
 #define TFT_SCK_Pin GPIO_PIN_3
 #define TFT_SCK_GPIO_Port GPIOB
 #define TFT_CS_Pin GPIO_PIN_4
@@ -127,7 +127,7 @@ void Error_Handler(void);
 #define TFT_RESET_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-#define FW_VERSION	("1.00")
+#define FW_VERSION	("1.02")
 //#define DEBUG_ON
 /* USER CODE END Private defines */
 

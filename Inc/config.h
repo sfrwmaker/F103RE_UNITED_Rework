@@ -39,7 +39,7 @@ class CFG_CORE: public TIPS {
 		bool		isSafeIronMode(void)				{ return a_cfg.bit_mask & CFG_SAFE_MODE;	}
 		uint16_t	gunFanPreset(void)					{ return a_cfg.gun_fan_speed;				}
 		uint8_t		getLowTO(void)						{ return a_cfg.t12_low_to; 					}	// 5-seconds intervals
-		uint8_t		getDsplBrightness(void)				{ return a_cfg.dspl_bright;					}	// 1-100%
+		uint8_t		getDsplBrightness(void)				{ return a_cfg.dspl_bright;					}	// 1-255
 		uint8_t		getDsplRotation(void)				{ return a_cfg.dspl_rotation;				}
 		void		setDsplRotation(uint8_t rotation)	{ a_cfg.dspl_rotation = rotation;			}
 		void		setLanguage(const char *lang)		{ strncpy(a_cfg.language, lang, LANG_LENGTH);}

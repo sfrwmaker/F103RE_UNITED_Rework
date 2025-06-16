@@ -9,6 +9,9 @@
  * 		Added MABOUT::flash_erase, modified the constructor
  * 		Added FERASE class to implement the flash erasing procedure
  * 		Removed the MTACT::MFAIL and MACT::setFail()
+ * 	2025 JUN 12, v.1.02
+ * 		Implemented different maximum manual power for Hakko T12 and JBC irons in MCALIB class
+ * 		Added MDEBUG::fan_is_on parameter to manually manage the Hot Air Gun fan
  */
 
 #include <vector>
@@ -84,7 +87,8 @@ class MCALIB : public MODE {
 		const uint32_t ref_ready_to		 = 120000;			// The reach reference temperature timeout. We should be ready in 2 minutes
 		const uint32_t phase_change_time = 3000;
 		const uint32_t check_device_to	 = 5000;
-		const uint16_t max_manual_power  = 300;				// The maximal power could be applied to the iron in preparation phase
+		const uint16_t max_pwr_t12  	 = 450;				// The maximal power could be applied to the T12 iron in preparation phase
+		const uint16_t max_pwr_jbc  	 = 300;				// The maximal power could be applied to the JBC iron in preparation phase
 };
 
 //---------------------- The calibrate tip mode: manual calibration --------------
@@ -204,11 +208,12 @@ class MDEBUG : public MODE {
 		uint16_t		old_ip 			= 0;				// Old IRON encoder value
 		uint16_t		old_fp			= 0;				// Old GUN encoder value
 		bool			gun_is_on 		= false;			// Flag indicating the gun is powered on
+		bool			fan_is_on		= false;			// Flag indicating the fan of the gun is powered on
 		bool			iron_on			= true;				// Flag indicating the iron (JBC or T12) is powered on
 		const uint16_t	max_iron_power 	= 800;
 		const uint16_t	min_fan_speed	= 800;
 		const uint16_t	max_fan_speed 	= 1999;
-		const uint8_t	gun_power		= 3;
+		const uint8_t	gun_power		= 2;
 };
 
 //---------------------- The Flash format mode: Confirm and format the flash ----
