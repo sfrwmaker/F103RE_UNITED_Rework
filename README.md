@@ -21,3 +21,10 @@ Revision history
   * Changed method to cooling down the Hot Air Gun
   * Changed the maximum Hot Air Gun temperature to 550 degrees Celsius
   * Fixed minor bugs
+
+2025 NOV 12 v.1.03
+  * Fixed flash write error issue when you are trying to modify your active tip list. 
+  * Updated the manual calibration procedure. You can start calibrate your soldering tip from lower temperatures and the controller would approximate the calibration data for higher tepmperature reference points to simplify calibration process.
+  * You can manage the Hot Air Gun speed in debug mode.
+  * Added support for Hot Air Gun with fan running 12 volts. You can select your fan voltage version in Hot Air Gum menu (12 or 24 volts)
+  * Added default ambient temperature paramater in menu setup. You can set the value of your ambient temperature via parameters menu. The Hakko T12 handle has termistor to check the ambient, temperature but JBC handle has no one. The default ambient temperature used when JBC iron is in use.
