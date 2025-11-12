@@ -10,6 +10,14 @@
  *  	Added HOTGUN::min_cool_temp and HOTGUN::min_cool_tm variables to manage cooling process
  *  	Added HOTGUN::fan_curr_avg_len constant to setup the average length of fan current SWITCH
  *  	Changed HOTGUN::sw_avg_len from 13 to 3 to increase speed of switching the Hot Air Gun on/off
+ *  2025 OCT 07, v.1.03
+ *  	Increased the HOTGUN::temp_len value from 6 to 10 to check the gun temperature more smoothly
+ *  	Increased the HOTGUN::hot_gun_len value from 10 to 16
+ *  2025 NOV 02, v.1.03
+ *  	Added support for 12v Hot Air Gun (Fan can be 12v or 24v capable)
+ *  		Now HOTGUN::min_fan_speed and HOTGUN::max_fan_speed are no longer constant. Its should be updated by HOTGUN::setFanLimits() method.
+ *  		Removed HOTGUN::minFanSpeed() and HOTGUN::maxFanSpeed()
+ *  		Removed HOTGUN::fanStepPcnt()
  */
 
 #ifndef GUN_H_
@@ -31,14 +39,12 @@ class HOTGUN : public UNIT {
         virtual uint16_t	getMaxFixedPower(void)			{ return max_fix_power; 						}
         virtual bool		isCold(void)					{ return mode == POWER_OFF;						}
         bool				isFanWorking(void)				{ return (fanSpeed() >= min_fan_speed);			}
-        uint16_t			minFanSpeed(void)				{ return min_fan_speed;							}
-        uint16_t			maxFanSpeed(void)				{ return max_fan_speed;							}
-        uint8_t				fanStepPcnt(void)				{ return (max_fan_speed + 50) / 100;			}
         virtual uint16_t	pwrDispersion(void)				{ return d_power.read(); 						}
         virtual uint16_t 	tmpDispersion(void)				{ return d_temp.read(); 						}
 		virtual void		setTemp(uint16_t temp)			{ temp_set	= constrain(temp, 0, int_temp_max);	}
 		void				setFan(uint16_t fan)			{ fan_speed = constrain(fan, min_fan_speed, max_fan_speed);	}
 		void				setFastGunCooling(bool on)		{ fast_cooling = on;							}
+        void				setFanLimits(uint16_t min_speed, uint16_t max_speed);
 		void				fanFixed(uint16_t fan);
 		void				fanControl(bool on);
 		void				updateTemp(uint16_t value);
@@ -67,19 +73,19 @@ class HOTGUN : public UNIT {
 		uint32_t	fan_off_time		= 0;				// Time when the fan should be powered off in cooling mode (ms)
 		uint16_t	min_cool_temp		= 0;				// The minimum registered temperature in cooling mode
 		uint32_t	min_cool_tm			= 0;				// The time when the minimum registered temperature in cooling mode reached
-		EMP_AVERAGE	h_power;								// Exponential average of applied power
-		EMP_AVERAGE	c_temp;									// Exponential average of Hot Air Gun current temperature. Updated in HAL_ADC_ConvCpltCallback() see core.cpp
-		EMP_AVERAGE	h_temp;									// Exponential average of Hot Air Gun history temperature.
-		EMP_AVERAGE	d_power;								// Exponential average of power dispersion
-		EMP_AVERAGE d_temp;									// Exponential temperature math dispersion
-		EMP_AVERAGE	zero_temp;								// Exponential average of minimum (zero) temperature
+		uint16_t	min_fan_speed	= 100;					// The minimum fan speed (depends on fan voltage)
+		uint16_t	max_fan_speed	= 1000;					// The maximum fan speed (depends on fan voltage)
+		EXPA		h_power;								// Exponential average of applied power
+		EXPA		c_temp;									// Exponential average of Hot Air Gun current temperature. Updated in HAL_ADC_ConvCpltCallback() see core.cpp
+		EXPA		h_temp;									// Exponential average of Hot Air Gun history temperature.
+		EXPA		d_power;								// Exponential average of power dispersion
+		EXPA		d_temp;									// Exponential temperature math dispersion
+		EXPA		zero_temp;								// Exponential average of minimum (zero) temperature
 		bool		relay_activated				= false;	// The relay activated flag
 		volatile    uint16_t	avg_sync_temp	= 0;		// Average temperature synchronized with TIM1 (used to calculate required power, see power() method)
 		volatile 	uint8_t		relay_ready_cnt	= 0;		// The relay ready counter, see HOTHUN::power()
         const       uint8_t     max_fix_power 	= 50;
 		const		uint8_t		max_power		= 80;
-		const		uint16_t	min_fan_speed	= 700;
-		const		uint16_t	max_fan_speed	= 1999;
 		const		uint16_t	max_cool_fan	= 1600;
         const		uint16_t	temp_gun_off	= 50;		// The temperature of the Hot Air Gun when it is safe to shutdown
         const		uint32_t	fan_off_timeout	= 6*60*1000;// The timeout to turn the fan off in cooling mode
@@ -90,8 +96,8 @@ class HOTGUN : public UNIT {
 		const 		uint8_t		sw_off_value	= 30;
 		const 		uint8_t		sw_on_value		= 60;
 		const 		uint8_t		sw_avg_len		= 7;
-		const		uint8_t		temp_len		= 6;		// The current temperature exponential average length
-		const 		uint8_t		hot_gun_len		= 10;		// The history data length of Hot Air Gun average values
+		const		uint8_t		temp_len		= 10;		// The current temperature exponential average length
+		const 		uint8_t		hot_gun_len		= 16;		// The history data length of Hot Air Gun average values
         const		uint32_t	relay_activate	= 1;		// The relay activation delay (loops of TIM1, 1 time per second)
         const		uint32_t	cooling_to		= 60000;	// If min_cool_temp min_cool_temp has not been changed during this timeout, the minimum temperature reached
 };

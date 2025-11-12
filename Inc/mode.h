@@ -1,17 +1,20 @@
 /*
  * mode.h
  *
- *  2024 NOV 16, v.1.00
+ *  2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
  *  2024 DEC 15
  * 		Added MCALIB::ref_ready_to constant
- * 	2025 MAR 06, v.1.01
+ * 	2025 MAR 06, v1.01
  * 		Added MABOUT::flash_erase, modified the constructor
  * 		Added FERASE class to implement the flash erasing procedure
  * 		Removed the MTACT::MFAIL and MACT::setFail()
- * 	2025 JUN 12, v.1.02
+ * 	2025 JUN 12, v1.02
  * 		Implemented different maximum manual power for Hakko T12 and JBC irons in MCALIB class
  * 		Added MDEBUG::fan_is_on parameter to manually manage the Hot Air Gun fan
+ * 		Removed MDEBUG::min_fan_speed and MDEBUG::max_fan_speed constants
+ * 	2025 NOV 02, v1.03
+ * 		Added the Linear approximation by Ordinary Least Squares method to calculate calibration points in MCALIB_MANUAL
  */
 
 #include <vector>
@@ -73,6 +76,7 @@ class MCALIB : public MODE {
 		uint8_t		closestIndex(uint16_t temp);
 		void 		updateReference(uint8_t indx);
 		void 		buildFinishCalibration(void);
+		OLS			ols;									// Use Linear approximation by Ordinary Least Squares method
 		uint8_t		ref_temp_index	= 0;					// Which temperature reference to change: [0-MCALIB_POINTS]
 		uint16_t	calib_temp[2][MCALIB_POINTS];			// The calibration data: real temp. [0] and temp. in internal units [1]
 		uint16_t	tip_temp_max	= 0;					// the maximum possible tip temperature in the internal units
@@ -100,6 +104,7 @@ class MCALIB_MANUAL : public MODE {
 	private:
 		void 		buildCalibration(uint16_t tip[], uint8_t ref_point);
 		void		restorePIDconfig(CFG *pCFG, UNIT* pUnit);
+		OLS			ols;									// Use Linear approximation by Ordinary Least Squares method
 		uint8_t		ref_temp_index	= 1;					// Which temperature reference to change: [0-ref_points]
 		uint16_t	calib_temp[4];							// The calibration temp. in internal units in reference points
 		bool		calib_flag[4];							// Flag indicating the reference temperature has been calibrated
@@ -211,8 +216,6 @@ class MDEBUG : public MODE {
 		bool			fan_is_on		= false;			// Flag indicating the fan of the gun is powered on
 		bool			iron_on			= true;				// Flag indicating the iron (JBC or T12) is powered on
 		const uint16_t	max_iron_power 	= 800;
-		const uint16_t	min_fan_speed	= 800;
-		const uint16_t	max_fan_speed 	= 1999;
 		const uint8_t	gun_power		= 2;
 };
 

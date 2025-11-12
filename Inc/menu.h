@@ -1,13 +1,19 @@
 /*
  * menu.h
  *
- *  2024 NOV 16, v.1.00
+ *  2024 NOV 16, v1.00
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2025 NOV 02, v1.03
+ *  	Added "Fan voltage" menu item into MENU_GUN
+ *  2025 NOV 11, v1.03
+ *  	Added MM_AMBIENT menu item into MSETUP
+ *  	Added MSETUP::def_ambient
  */
 
 #ifndef MENU_H_
 #define MENU_H_
 #include "mode.h"
+#include "vars.h"
 
 //---------------------- The Menu mode -------------------------------------------
 class MMENU : public MODE {
@@ -46,6 +52,7 @@ private:
 	bool		ips_display		= false;				// The display type: IPS or TFT
 	bool		safe_iron_mode	= false;				// Limit the maximum iron temperature
 	uint8_t		dspl_bright		= 100;					// Display brightness
+	uint8_t		def_ambient		= default_ambient;
 	uint8_t		dspl_rotation	= 0;					// Display rotation
 	uint8_t		lang_index		= 0;					// Language Index (0 - english)
 	uint8_t		num_lang		= 0;					// Number of the loaded languages
@@ -54,7 +61,7 @@ private:
 	// When new menu item added, in_place_start, in_place_end, tip_calib_menu constants should be adjusted
 	const uint8_t	in_place_start	= MM_TEMP_STEP;		// See the menu names. Index of the first parameter that can be changed inside menu (see nls.h)
 	const uint8_t	in_place_end	= MM_LANGUAGE;		// See the menu names. Index of the last parameter that can be changed inside menu
-	enum { MM_UNITS = 0, MM_BUZZER, MM_I_ENC, MM_G_ENC, MM_TEMP_STEP, MM_BRIGHT, MM_ROTATION, MM_LANGUAGE,
+	enum { MM_UNITS = 0, MM_BUZZER, MM_I_ENC, MM_G_ENC, MM_TEMP_STEP, MM_BRIGHT, MM_AMBIENT, MM_ROTATION, MM_LANGUAGE,
 			MM_DSPL_TYPE, MM_SAFE_MODE, MM_PID, MM_SAVE, MM_CANCEL
 	};
 };
@@ -126,15 +133,16 @@ class MENU_GUN : public MODE {
 	private:
 		MODE*		mode_calibrate;
 		bool		fast_gun_chill	= false;				// Start chilling the Hot Gun at a maximum fan speed
+		bool		is_fan_24v		= false;				// Flag indicating the voltage of Hot Air Gun fan
 		uint8_t		stby_timeout	= 0;					// Automatic switch off timeout in minutes or 0 to disable
 		uint16_t	stby_temp		= 0;					// The low power temperature (Celsius) 0 - switch off the JBC IRON immediately
 		int8_t		set_param		= -1;					// The index of the modifying parameter
 		uint8_t		mode_menu_item	= 0;
 		// When new menu item added, in_place_start, in_place_end, tip_calib_menu constants should be adjusted
 		const uint8_t	in_place_start	= MG_STBY_TO;		// See the menu names. Index of the first parameter that can be changed inside menu (see nls.h)
-		const uint8_t	in_place_end	= MG_STANDBY_TEMP;	// See the menu names. Index of the last parameter that can be changed inside menu
+		const uint8_t	in_place_end	= MG_FAN_VOLTAGE;	// See the menu names. Index of the last parameter that can be changed inside menu
 		const uint16_t	min_standby_C	= 120;				// Minimum standby temperature, Celsius
-		enum { MG_FAST_CHILL = 0, MG_STBY_TO, MG_STANDBY_TEMP, MG_SAVE, MG_CALIBRATE, MG_BACK };
+		enum { MG_FAST_CHILL = 0, MG_STBY_TO, MG_STANDBY_TEMP, MG_FAN_VOLTAGE, MG_SAVE, MG_CALIBRATE, MG_BACK };
 };
 
 //---------------------- PID setup menu ------------------------------------------

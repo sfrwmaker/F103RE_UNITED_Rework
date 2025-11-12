@@ -41,7 +41,7 @@ class MWORK : public DASH {
 		bool			jbcRotate(uint16_t new_value);
 		bool			isIronCold(tIronPhase phase);
 		bool			isIronWorking(tIronPhase phase);
-		EMP_AVERAGE  	idle_pwr;							// Exponential average value for idle power
+		EXPA			idle_pwr;							// Exponential average value for idle power
 		uint32_t		iron_phase_end	= 0;				// Time when to change phase of IRON (ms)
 		uint32_t		gun_switch_off	= 0;				// Time when to switch-off the Hot Air Gun (ms)
 		uint32_t		lowpower_time	= 0;				// Time when switch the T12 IRON to standby power mode

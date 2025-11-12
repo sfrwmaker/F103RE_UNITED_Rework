@@ -127,7 +127,7 @@ void Error_Handler(void);
 #define TFT_RESET_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-#define FW_VERSION	("1.02")
+#define FW_VERSION	("1.03")
 //#define DEBUG_ON
 /* USER CODE END Private defines */
 

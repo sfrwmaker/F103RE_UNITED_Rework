@@ -1,14 +1,18 @@
 /*
  * nls.h
  *
- *  2024 NOV 16, v.1.00
+ *  2024 NOV 16, v1.00
  *  	Ported from JBC controller source code, tailored to the new hardware
- *  2025 MAR 06, v.1.01
+ *  2025 MAR 06, v1.01
  *  	Added 'erase FLASH?', 'FLASH erase error', 'FLASH format complete' and 'INFO' messages
  *  	Changed message 'FLASH debug' to 'FLASH erase'
  *  	Changed all 'EEPROM' to 'FLASH'
  *  	Removed the messages that no longer used: 'No directory', 'Delete file?', 'Failed mount SD', 'NO config file',
  *  	'No lang. specified', 'No memory', 'Inconsistent lang'
+ *  2025 NOV 02, v1.03
+ *  	Added "Fan voltage" menu item into "HOT GUN setup" menu
+ *  2025 NOV 11, v1.03
+ *  	Added "ambient"  menu item into "Parameters" menu
  */
 
 #ifndef MSG_NLS_H_
@@ -16,9 +20,9 @@
 
 #include <string>
 
-typedef enum e_msg { MSG_MENU_MAIN, MSG_MENU_SETUP = 10, MSG_MENU_T12 = 10+14, MSG_MENU_JBC = 10+14+11, MSG_MENU_GUN = 10+14+11+6,
-					 MSG_MENU_CALIB = 10+14+11+6+7, MSG_PID_MENU = 10+14+11+6+7+5, MSG_FLASH_MENU = 10+14+11+6+7+5+5,
-					MSG_ON = 10+14+11+6+7+5+5+5, MSG_OFF, MSG_FAN, MSG_PWR,
+typedef enum e_msg { MSG_MENU_MAIN, MSG_MENU_SETUP = 10, MSG_MENU_T12 = 10+15, MSG_MENU_JBC = 10+15+11, MSG_MENU_GUN = 10+15+11+6,
+					 MSG_MENU_CALIB = 10+15+11+6+8, MSG_PID_MENU = 10+15+11+6+8+5, MSG_FLASH_MENU = 10+15+11+6+8+5+5,
+					MSG_ON = 10+15+11+6+8+5+5+5, MSG_OFF, MSG_FAN, MSG_PWR,
 					MSG_REF_POINT, MSG_REED, MSG_TILT, MSG_DEG, MSG_MINUTES, MSG_SECONDS,
 					MSG_CW, MSG_CCW, MSG_SET, MSG_INFO, MSG_ERROR, MSG_TUNE_PID, MSG_SELECT_TIP,
 					MSG_FLASH_READ_ERR, MSG_FLASH_WRITE_ERR, MSG_FLASH_ERASE_ERR, MSG_FORMAT_COMPLETE, MSG_NO_TIP_LIST, MSG_DO_FORMAT_FLASH,
@@ -67,6 +71,7 @@ class NLS_MSG {
 				{"lower encoder",	std::string()},
 				{"temp. step",		std::string()},
 				{"brightness",		std::string()},			// Change in-place menu item
+				{"ambient",			std::string()},			// Change in-place menu item
 				{"rotation",		std::string()},			// Change in-place menu item
 				{"language",		std::string()},			// Change in-place menu item
 				{"display type",	std::string()},
@@ -98,6 +103,7 @@ class NLS_MSG {
 				{"fast chill",		std::string()},
 				{"standby time",	std::string()},
 				{"standby temp.",	std::string()},
+				{"fan voltage",		std::string()},
 				{"save",			std::string()},
 				{"calibrate gun",	std::string()},
 				{"back to menu",	std::string()},

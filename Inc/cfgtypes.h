@@ -3,6 +3,11 @@
  *
  *  2024 NOV 16
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2025 NOV 02, v1.03
+ *  	Added support for 12v Hot Air Gun (Fan can be 12v or 24v capable)
+ *  	Changed type of RECORD.gun_fan_speed from uint16_t to uint8_t to keep fan speed percentage, not raw value
+ *	2025 NOV 11, v1.03
+ *		Added new parameter - default ambient temperature, RECORD.def_ambient
  */
 
 #ifndef CFGTYPES_H_
@@ -25,7 +30,7 @@
  */
 typedef enum { CFG_CELSIUS = 1, CFG_BUZZER = 2, CFG_SWITCH = 4, CFG_AU_START = 8,
 				CFG_U_CLOCKWISE = 16, CFG_L_CLOCKWISE = 32, CFG_FAST_COOLING = 64, CFG_BIG_STEP = 128,
-				CFG_DSPL_TYPE = 256, CFG_SAFE_MODE = 512 } CFG_BIT_MASK;
+				CFG_DSPL_TYPE = 256, CFG_SAFE_MODE = 512, CFG_FAN_24 = 1024 } CFG_BIT_MASK;
 
 typedef enum { d_t12 = 0, d_jbc = 1, d_gun = 2, d_unknown } tDevice;
 
@@ -48,14 +53,14 @@ struct s_config {
 	uint16_t	crc;								// The checksum
 	uint16_t	t12_temp;							// The T12 IRON preset temperature in degrees (Celsius or Fahrenheit)
 	uint16_t	jbc_temp;							// The T12 IRON preset temperature in degrees (Celsius or Fahrenheit)
-	uint16_t	gun_temp;							// The Hot Air Gun preset temperature in degrees (Celsius or Fahrenheit)
-	uint16_t	gun_fan_speed;						// The Hot Air Gun fan speed
 	RADIX		t12_tip;							// Current T12 name
 	RADIX		jbc_tip;							// Current JBC tip index
 	uint16_t	t12_low_temp;						// The T12 IRON low power temperature (C) or 0 if the tilt sensor is disabled
 	uint8_t		t12_low_to;							// The T12 IRON low power timeout (5 seconds intervals)
 	uint8_t		boost;								// Two 4-bits parameters: The boost increment temperature and boost time. See description above
 	uint8_t		t12_off_timeout;					// The T12 IRON Automatic switch-off timeout in minutes [0 - 30]
+	uint8_t		gun_fan_speed;						// The Hot Air Gun fan speed, percent
+	uint16_t	gun_temp;							// The Hot Air Gun preset temperature in degrees (Celsius or Fahrenheit)
 	uint16_t	jbc_low_temp;						// The JBC IRON low power temperature (C) or 0 if disabled
 	uint8_t		jbc_off_timeout;					// The JBC IRON Automatic switch-off timeout in minutes [0 - 30]
 	uint16_t	gun_low_temp;						// The Hot Gun low power temperature (C) or 0 if disabled
@@ -63,6 +68,7 @@ struct s_config {
 	uint16_t	bit_mask;							// See CFG_BIT_MASK
 	uint8_t		dspl_bright;						// The display brightness [1-255]
 	uint8_t		dspl_rotation;						// The display rotation (TFT_ROTATION_0, TFT_ROTATION_90, TFT_ROTATION_180, TFT_ROTATION_270)
+	uint8_t		def_ambient;						// The default ambient temperature, Celsius [15..45]
 	char		language[LANG_LENGTH];				// The language. LANG_LENGTH defined in vars.h
 };
 

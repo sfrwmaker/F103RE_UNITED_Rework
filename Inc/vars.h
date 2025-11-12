@@ -3,6 +3,8 @@
  *
  *  2024 NOV 16
  *  	Ported from JBC controller source code, tailored to the new hardware
+ * 	2025 NOV 11, v1.04
+ * 		Added default_ambient_min and default_ambient_max
  */
 
 #ifndef VARS_H_
@@ -16,6 +18,8 @@ extern const uint8_t	auto_pid_hist_length;
 extern const uint8_t	ec;
 
 extern const uint8_t	default_ambient;
+extern const uint8_t	default_ambient_min;
+extern const uint8_t	default_ambient_max;
 extern const uint16_t	iron_temp_minC;
 extern const uint16_t	iron_temp_maxC_safe;
 extern const uint16_t 	iron_temp_maxC;

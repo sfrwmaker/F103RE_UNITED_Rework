@@ -3,9 +3,10 @@
  *
  *  2023 OCT 19
  *  	Ported from JBC controller source code, tailored to the new hardware
- *  2025 MAR 05, v.1.01
+ *  2025 MAR 05, v1.01
  *  	Added sectors() and eraseSector() to implement the flash debug procedures
- *
+ *  2025 NOV 04, v1.03
+ *		Added W25Q::rw boolean flag to fix issue with Flash write error when changing active tip list
  */
 
 #ifndef _FLASH_H_
@@ -49,6 +50,7 @@ class W25Q {
 		uint8_t			PID_checkSum(PID_PARAMS* pid_params, bool write);
 		bool			backup(ACT_FILE type);
 		bool			keep_mounted	= false;
+		bool			rw				= false;				// The active file is read/write
 		FIL				cfg_f;
 		ACT_FILE		act_f = W25Q_NOT_MOUNTED;				// Open file
 		const uint16_t	blk_size		= 4096;
