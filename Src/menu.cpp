@@ -1,9 +1,12 @@
 /*
  * menu.cpp
  *
- * 2024 NOV 16, v.1.00
+ * 2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- *
+ *  2025 NOV 02, v1.03
+ *  	Added "Fan voltage" menu item into MENU_GUN
+ *  2025 NOV 11, v1.03
+ *  	Added "ambient" menu item into MSETUP
  */
 #include "menu.h"
 
@@ -96,6 +99,7 @@ void MSETUP::init(void) {
 	num_lang		= pCore->nls.numLanguages();
 	dspl_bright		= pCFG->getDsplBrightness();		// Brightness [1-255]
 	dspl_rotation	= pCFG->getDsplRotation();
+	def_ambient		= pCFG->getDefAmbient();
 	set_param		= 0;
 	uint8_t menu_len = pCore->dspl.menuSize(MSG_MENU_SETUP);
 	pEnc->reset(mode_menu_item, 0, menu_len-1, 1, 1, true);
@@ -119,6 +123,9 @@ MODE* MSETUP::loop(void) {
 			case MM_BRIGHT:
 				dspl_bright = constrain(item, 1, 255);
 				pCore->dspl.BRGT::set(dspl_bright);
+				break;
+			case MM_AMBIENT:
+				def_ambient = item;
 				break;
 			case MM_ROTATION:
 				dspl_rotation = constrain(item, 0, 3);
@@ -164,6 +171,10 @@ MODE* MSETUP::loop(void) {
 					set_param = item;
 					pEnc->reset(dspl_bright, 1, 255, 1, 5, false);
 					break;
+				case MM_AMBIENT:
+					set_param = item;
+					pEnc->reset(def_ambient, default_ambient_min, default_ambient_max, 1, 5, false); // See vars.h
+					break;
 				case MM_ROTATION:
 					set_param = item;
 					pEnc->reset(dspl_rotation, 0, 3, 1, 1, true);
@@ -192,7 +203,7 @@ MODE* MSETUP::loop(void) {
 						}
 					}
 					pCFG->setDsplRotation(dspl_rotation);
-					pCFG->setup(buzzer, celsius, temp_step, u_clock_wise, l_clock_wise, ips_display, safe_iron_mode, dspl_bright);
+					pCFG->setup(buzzer, celsius, temp_step, u_clock_wise, l_clock_wise, ips_display, safe_iron_mode, dspl_bright, def_ambient);
 					pCFG->saveConfig();
 					pCore->u_enc.setClockWise(u_clock_wise);
 					pCore->l_enc.setClockWise(l_clock_wise);
@@ -267,6 +278,13 @@ MODE* MSETUP::loop(void) {
 			{
 			uint8_t pcnt = map(dspl_bright, 0, 255, 0, 100);
 			sprintf(item_value, "%3d%c", pcnt, '%');
+			}
+			break;
+		case MM_AMBIENT:
+			if (celsius) {
+				sprintf(item_value, "%2dC", def_ambient);
+			} else {
+				sprintf(item_value, "%2dF", celsiusToFahrenheit(def_ambient));
 			}
 			break;
 		case MM_ROTATION:
@@ -720,6 +738,7 @@ void MENU_GUN::init(void) {
 	fast_gun_chill	= pCFG->isFastGunCooling();
 	stby_timeout	= pCFG->getOffTimeout(d_gun);
 	stby_temp		= pCFG->getLowTemp(d_gun);
+	is_fan_24v		= pCFG->isFan24v();
 	set_param		= -1;
 	uint8_t m_len 	= pCore->dspl.menuSize(MSG_MENU_GUN);
 	uint8_t pos		= pCFG->isTipCalibrated(d_gun)?0:MG_CALIBRATE;
@@ -775,11 +794,21 @@ MODE* MENU_GUN::loop(void) {
 					pEnc->reset(stby_temp, min_standby_C-1, max_standby_C, 1, 5, false);
 					break;
 					}
+				case MG_FAN_VOLTAGE:
+					is_fan_24v	= !is_fan_24v;
+					break;
 				case MG_SAVE:									// save
+				{
 					pD->BRGT::dim(50);							// Turn-off the brightness, processing
-					pCFG->setupGUN(fast_gun_chill, stby_timeout, stby_temp);
+					pCFG->setupGUN(fast_gun_chill, is_fan_24v, stby_timeout, stby_temp);
 					pCFG->saveConfig();
+					bool fast_cooling	= pCFG->isFastGunCooling();
+					uint16_t min_speed	= pCFG->minFanSpeed();	// Update the Hot Air Gun fan limits depending on fan voltage
+					uint16_t max_speed	= pCFG->maxFanSpeed();
+					pCore->hotgun.setFastGunCooling(fast_cooling);
+					pCore->hotgun.setFanLimits(min_speed, max_speed);
 					return mode_return;
+				}
 				case MG_CALIBRATE:
 					if (mode_calibrate) {
 						mode_calibrate->useDevice(d_gun);
@@ -840,6 +869,13 @@ MODE* MENU_GUN::loop(void) {
 				}
 			} else {
 				strncpy(item_value, pD->msg(MSG_OFF), value_length);
+			}
+			break;
+		case MG_FAN_VOLTAGE:
+			if (is_fan_24v) {
+				strcpy(item_value, "24v");
+			} else {
+				strcpy(item_value, "12v");
 			}
 			break;
 		default:

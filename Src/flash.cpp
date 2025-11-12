@@ -8,6 +8,10 @@
  * 		int16_t W25Q::saveTipData(TIP* tip, bool keep)
  *  2025 MAR 05, v.1.01
  *  	Added sectors() and eraseSector() to implement the flash debug procedures
+ *  2025 NOV 04, v1.03
+ *		Fix issue with Flash write error when changing active tip list: Implemented the W25Q::rw flag indicating file open read/write
+ *		Modified W25Q::loadTipData(), W25Q::saveTipData(), W25Q::tipListReadNextItem()
+ *
  */
 #include <string.h>
 #include "flash.h"
@@ -194,7 +198,8 @@ TIP_IO_STATUS W25Q::loadTipData(TIP* tip, uint8_t tip_index, bool keep) {
 	if (act_f != W25Q_TIPS_CURRENT) {						// Close other configuration file
 		close();
 		if (FR_OK == f_open(&cfg_f, fn_tip_calib, FA_READ)) {
-			act_f = W25Q_TIPS_CURRENT;
+			act_f	= W25Q_TIPS_CURRENT;
+			rw		= false;								// File open read only
 		}
 	}
 	if (act_f != W25Q_TIPS_CURRENT)
@@ -222,7 +227,7 @@ int16_t W25Q::saveTipData(TIP* tip, bool keep) {
 	if (!mount())
 		return -1;
 	bool new_entry = false;
-	if (act_f == W25Q_TIPS_CURRENT) {						// The tip configuration file is already opened
+	if (act_f == W25Q_TIPS_CURRENT && rw) {					// The tip configuration file is already opened
 		f_lseek(&cfg_f, 0);									// Rewind to the top of the file
 	} else {
 		W25Q::close();
@@ -235,7 +240,8 @@ int16_t W25Q::saveTipData(TIP* tip, bool keep) {
 			}
 
 		}
-		act_f = W25Q_TIPS_CURRENT;
+		act_f	= W25Q_TIPS_CURRENT;
+		rw		= true;										// File open read/write mode
 	}
 	if (!new_entry) {										// Try to locate our tip in the file
 		UINT	br = 0;										// Bytes actually read from the file
@@ -316,7 +322,8 @@ uint8_t W25Q::tipListReadNextItem(const char data[], uint8_t size) {
 	if (act_f != W25Q_CONFIG_TIP_LIST) {					// Close other configuration file
 		close();
 		if (FR_OK == f_open(&cfg_f, fn_tip_list, FA_READ)) {
-			act_f = W25Q_CONFIG_TIP_LIST;
+			act_f 	= W25Q_CONFIG_TIP_LIST;
+			rw		= false;								// File open read only
 		}
 	}
 	if (act_f != W25Q_CONFIG_TIP_LIST) {

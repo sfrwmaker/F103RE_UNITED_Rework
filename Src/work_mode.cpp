@@ -3,8 +3,10 @@
  *
  *  2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- * 	2025 JUN 09, v.1.02
+ * 	2025 JUN 09, v1.02
  * 		Modified the MWORK::loop() and MWORK::manageEncoders() to save the preset temperature after save_preset_to timeout the encoder was rotated
+ * 	2025 NOV 02, v1.03
+ * 		Modified the MWORK::manageEncoders() to manage the fan speed in percents
  *
  */
 
@@ -485,11 +487,11 @@ bool MWORK::manageEncoders(void) {
 		}
 		// the HOT AIR GUN button was pressed, toggle temp/fan
 		if (edit_temp) {									// Switch to edit fan speed
+			uint16_t min	= pCFG->minFanSpeed();
+			uint16_t max 	= pCFG->maxFanSpeed();
 			uint16_t fan 	= pHG->presetFan();
-			uint16_t min	= pHG->minFanSpeed();
-			uint16_t max 	= pHG->maxFanSpeed();
-			uint8_t	 step	= pHG->fanStepPcnt();
-			pCore->l_enc.reset(fan, min, max, step, step<<2, false);
+			fan				= map(fan, min, max, 0, 100);	// fan speed, percents
+			pCore->l_enc.reset(fan, 0, 100, 1, 5, false);
 			edit_temp 		= false;
 			temp_set_h		= fan;
 			return_to_temp	= HAL_GetTick() + edit_fan_timeout;
@@ -506,20 +508,22 @@ bool MWORK::manageEncoders(void) {
     if (pCore->l_enc.changed()) {							// Changed preset temperature or fan speed
 		uint16_t g_temp = temp_set_h;						// In first loop the preset temperature will be setup for sure
 		uint16_t t	= pHG->presetTemp();					// Internal units
-		uint16_t f	= pHG->presetFan();
+		uint8_t  f	= pCFG->gunFanPresetPcnt();				// 0-100%
 		t = pCFG->tempToHuman(t, ambient, d_gun);
 		if (edit_temp) {
-			t = temp_set_h;									// New temperature value
-			presetTemp(d_gun, temp_set_h);
+			t = temp_set_h;									// New temperature value, read from the encoder
+			presetTemp(d_gun, temp_set_h);					// Draw new temperature
 			uint16_t g_temp_set	= pCFG->humanToTemp(g_temp, ambient, d_gun);
-			pHG->setTemp(g_temp_set);
+			pHG->setTemp(g_temp_set);						// Update Hot Air Gun temperature
+			pCFG->saveGunPreset(t, f);						// Update the preset temperature in memory only. To save config to the flash, use saveConfig()
 		} else {
-			f = temp_set_h;									// New fan value
-			pHG->setFan(f);
-			fanSpeed(true);
+			f = temp_set_h;									// New fan value read from the encoder, %
+			pCFG->saveGunPreset(t, f);						// Update the preset temperature in memory only.
+			uint16_t fan_speed = pCFG->gunFanPreset();		// Convert the fan speed in percent to raw value
+			pHG->setFan(fan_speed);
+			fanSpeed(true);									// Draw the fan speed
 			return_to_temp	= HAL_GetTick() + edit_fan_timeout;
 		}
-		pCFG->saveGunPreset(t, f);							// Update the preset temperature in memory only. To save config to the flash, use saveConfig()
 		enc_changed_ms = HAL_GetTick();						// The preset temperature just has been changed
     }
 

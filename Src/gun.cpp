@@ -1,15 +1,18 @@
 /*
  * gun.cpp
  *
- *  2024 NOV 16, v.1.00
+ *  2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- * 	2025 JUN 11, v.1.02
+ * 	2025 JUN 11, v1.02
  * 		Changed first parameter in PID::init(1200, 13, false) call accordingly with new temperature checking period
  * 		Removed the pidStable() call from HOTGUN::power()
  *		Changed the method used to check the Hot Air Gun has been cooled by detecting the minimal reached temperature
  *		and save the time when this temperature was reached. In case the minimal temperature has not been changed in HOTGUN::cooling_to time,
  *		assume the Hot Air Gun has been cooled, give a little timeout and shutdown the unit.
  *		Modified the HOTGUN::switchPower() and HOTGUN::power() to implement new cooling method.
+ *  2025 NOV 02, v1.03
+ *  	Added support for 12v Hot Air Gun (Fan can be 12v or 24v capable)
+ *  		Created HOTGUN::setFanLimits()
  */
 
 #include "gun.h"
@@ -54,6 +57,11 @@ uint16_t HOTGUN::appliedPower(void) {
 
 uint16_t HOTGUN::fanSpeed(void) {
 	return constrain(FAN_TIM.Instance->CCR2, 0, 1999);
+}
+
+void HOTGUN::setFanLimits(uint16_t min_speed, uint16_t max_speed) {
+	min_fan_speed = constrain(min_speed, 0, 1999);
+	max_fan_speed = constrain(max_speed, 0, 1999);
 }
 
 void HOTGUN::fanFixed(uint16_t fan) {

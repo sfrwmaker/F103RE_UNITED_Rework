@@ -1,15 +1,20 @@
 /*
  * core.cpp
  *
- *  2024 NOV 16, v.1.00
+ *  2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- * 	2025 MAR 06, v.1.01
+ * 	2025 MAR 06, v1.01
  * 		Implemented flash erase procedure, see FERASE class initialization
  * 		Changed class initialization because the MFAIL pointer now is inside the HW class
- * 	2025 JUN 03, v.1.02
+ * 	2025 JUN 03, v1.02
  * 		Changed the algorithm how the Hot Air Gun managed, see detailed description below
  * 		Changed the TIM3 initialization
  * 		Created calculateGunPowerData() routine
+ * 	2025 OCT 07, v1.03
+ * 		Changed the size of adc1_buff array to 8, see #define ADC1_CUR statement
+ * 		Changed the HAL_ADC_ConvCpltCallback() routine to calculate Hot Gun temperature more accurately by 4 samples
+ * 	2025 NOV 11, v1.03
+ * 		Replaced the MCU temperature readings with preset value via preference menu. Used as ambient temperature when T12 handle is not connected.
  *
  *  Hardware configuration:
  *  Analog pins:
@@ -46,7 +51,7 @@
  *  To manage the power of the Hot Air Gun, the controller uses a means of 120 half-period shapes (1.2 secs in Europe or 1 sec is USA) because the number 120 has a multiple dividers: 2,3,4,5,6, etc.
  *  So it easy to distribute many active half-period shapes from 0 to 120 in 120-element array evenly. 120 is a period of checking the Hot Air Gun temperature and calculate the required power to be applied.
  *  As soon as required power calculated (0-120 half-period shapes) this number of half-period shapes is distributed into 120 elements DMA buffer (gun_pwr) by the calculateGunPowerData() routine.
- *  This DMA buffer then sent to the TIM3->CHANNEL4 to manage the PWM signal to activate the TRIAC on the Power board. Active pulse encoded as 70 (TIM3 ticks) and inactive pulse is encoded as 0.
+ *  This DMA buffer then sent to the TIM3->CH4 to manage the PWM signal to activate the TRIAC on the Power board. Active pulse encoded as 70 (TIM3 ticks) and inactive pulse is encoded as 0.
  *  As mentioned before, the TIM3 timer counts from 0 to 100 (or 83 in USA) before AC_ZERO interrupt reset the timer and the 70-ticks long active pulse activates the TRIAC at the AV wave beginning
  *  and goes down before the sine pulse ends, but the TRIAC keeps open until the AC sine wave goes through the zero, so the half-period shape will propagate to the Hot Air Gun completely.
  *  From the other side, the TIM3 PWM channel goes down at 70-th timer tick and power-off the Hot Air Gun at the beginning of the next half-period shape for sure.
@@ -61,7 +66,7 @@
 #include "vars.h"
 
 // Activated ADC Ranks Number (hadc1.Init.NbrOfConversion)
-#define ADC1_CUR 			(5)
+#define ADC1_CUR 			(6)
 #define ADC3_TEMP			(5)
 #define MAX_GUN_POWER		(120)
 
@@ -76,13 +81,13 @@ volatile static uint32_t	errors		= 0;
 
 typedef enum { ADC_IDLE, ADC_CURRENT, ADC_TEMP } t_ADC_mode;
 volatile static t_ADC_mode	adc_mode = ADC_IDLE;
-volatile static uint16_t	adc1_buff[ADC1_CUR];			// Current data: IRON, FAN, GUN temperature, VREFint, INTERNAL_temperature
+volatile static uint16_t	adc1_buff[ADC1_CUR];			// Current data: IRON, FAN, (GUN temperature)*4
 volatile static uint16_t	adc3_buff[ADC3_TEMP];			// Temperature data: IRON * 4, AMBIENT
 volatile static uint32_t	gtim_last_ms	= 0;			// Time when the last AC_ZERO interrupt received
 volatile static	bool		ac_sine		= false;			// Flag indicating that TIM3 has received the external interrupt on AC_ZERO pin
 volatile static uint8_t		gun_pwr[MAX_GUN_POWER*2] = {0};	// The HOT GUN power PWM buffer
 volatile static bool		adc_manual	= false;			// Flag indicating that we have to manage ADC DMA buffer manually
-static 	EMP_AVERAGE			gtim_period;					// gun timer period (ms)
+static 	EXPA				gtim_period;					// gun timer period (ms)
 static  uint16_t  			max_iron_pwm	= 0;			// Max value should be less than TIM3.CH3 value by 40. Will be initialized later
 const static	uint32_t	check_sw_period = 100;			// IRON switches check period, ms
 
@@ -188,19 +193,21 @@ extern "C" void setup(void) {
 	iron_temp += 2; iron_temp >>= 2;
 	uint16_t ambient = adc3_buff[4];						// adc3_buff[4] is ambient temperature (sensor inside T12 handle)
 
-	// ADC1 reads [iron_current, fan_current, gun_temp, ambient, vrefint, internal_temp]
+	// ADC1 reads [iron_current, fan_current, gun_temp]
 	adc_manual = true;										// Manage DMA reading buffer manually, see HAL_ADC_ConvCpltCallback()
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc1_buff, ADC1_CUR);
 	while (adc_manual) { }									// Wait for ADC readings
-	uint16_t gun_temp	= adc1_buff[2];
-	uint16_t vref		= adc1_buff[3];
-	uint16_t t_mcu		= adc1_buff[4];
+	uint16_t gun_temp	= 0;
+	for (uint8_t i = 2; i < 6; ++i) {
+		gun_temp += adc1_buff[i];							// The Gun temperature is measured 4 times
+	}
+	gun_temp >>= 2;											// Divide by 4
 
 	gtim_period.length(10);
 	gtim_period.reset(1000);								// Default TIM1 period, ms
 	max_iron_pwm	= htim2.Instance->CCR4 - 40;			// Stop supplying power in 40 mkS before start checking IRON temperature
 
-	CFG_STATUS cfg_init = core.init(iron_temp, gun_temp, ambient, vref, t_mcu);
+	CFG_STATUS cfg_init = core.init(iron_temp, gun_temp, ambient);
 
 	HAL_TIM_Base_Start_IT(&htim3);
 	HAL_TIM_PWM_Start_DMA(&htim3, TIM_CHANNEL_4, (const uint32_t*)gun_pwr, MAX_GUN_POWER*2); // PWM signal of Hot Air Gun
@@ -223,6 +230,7 @@ extern "C" void setup(void) {
 	param_menu.setup(&main_menu, &work, &work);
 	t12_menu.setup(&main_menu, &work, &work);
 	jbc_menu.setup(&main_menu, &work, &work);
+	gun_menu.setup(&main_menu, &work, &work);
 	main_menu.setup(&work, &work, &work);
 	about.setup(&work, &work, &debug);
 	debug.setup(&work, &work, &work);
@@ -364,7 +372,7 @@ extern "C" void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim) {
  */
 extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	HAL_ADC_Stop(hadc);
-	if (adc_manual) {									// Read the ADC value in setup() routine
+	if (adc_manual) {										// Read the ADC value in setup() routine
 		adc_manual = false;
 		return;
 	}
@@ -375,8 +383,18 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 		if (TIM2->CCR2 > 1) {								// The Hot Air Gun FAN has been powered
 			core.hotgun.updateCurrent(adc1_buff[1]);		// adc1_buff[1] is the current through the FAN
 		}
-		core.hotgun.updateTemp(adc1_buff[2]);			// adc1_buff[2] is the Hot Air Gun temperature
-		core.updateIntTemp(adc1_buff[3], adc1_buff[4]);		// adc1_buff[4] is vrefint, adc1_buff[5] is the MCU internal temperature
+		uint16_t gun_temp	= 0; 							// adc1_buff[4..7] are the Hot Air Gun temperature
+		uint16_t gun_min	= 4096;
+		uint16_t gun_max	= 0;
+		for (uint8_t i = 2; i <= 5; ++i) {
+			gun_temp += adc1_buff[i];
+			if (adc1_buff[i] > gun_max) gun_max = adc1_buff[i];
+			if (adc1_buff[i] < gun_min) gun_min = adc1_buff[i];
+		}
+		gun_temp -= gun_min + gun_max;
+		gun_temp += 1;
+		gun_temp >>= 1;
+		core.hotgun.updateTemp(gun_temp);
 	} else if (hadc->Instance == ADC3) {					// Ambient temperature checking
 		// Check the IRON temperature and calculate the required power
 		uint32_t iron_temp = adc3_buff[0];

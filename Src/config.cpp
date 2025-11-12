@@ -1,12 +1,19 @@
 /*
  * config.cpp
  *
- *  2024 NOV 16, v.1.00
+ *  2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- * 	2025 JUN 12, v.1.02
+ * 	2025 JUN 12, v1.02
  * 		Changed default PID coefficients of the Hot Air Gun in CFG_CORE::setPIDdefaults() method
  * 		Fixed bug in CFG_CORE::tempMax() returned wrong maximum temperature of the Hot Air Gun
  * 		Fixed bug in CFG::tipList() to skip wrong type tip and generate the correct tip list in tip selection mode
+ * 	2025 NOV 02, v1.03
+ *  	Added support for 12v Hot Air Gun (Fan can be 12v or 24v capable)
+ *  	Changed the Hot Air Gun fan speed from raw value to percents
+ *  	Added CFG_CORE::gunFanPcntSpeed(), CFG_CORE::minFanSpeed() and CFG_CORE::maxFanSpeed()
+ *  2025 NOV 11. v1.03
+ *  	Modified the CFG_CORE::setup() to setup default ambient temperature value
+ *  	Modified CFG_CORE::setDefaults()
  */
 
 #include <stdlib.h>
@@ -468,6 +475,16 @@ uint16_t CFG_CORE::tempMax(tDevice dev, bool celsius, bool safe_iron_mode) {
 	return t;
 }
 
+uint16_t CFG_CORE::minFanSpeed(void) {
+	const uint16_t *p = (a_cfg.bit_mask & CFG_FAN_24)?fan_speed_24v:fan_speed_12v;
+	return p[0];
+}
+
+uint16_t CFG_CORE::maxFanSpeed(void) {
+	const uint16_t *p = (a_cfg.bit_mask & CFG_FAN_24)?fan_speed_24v:fan_speed_12v;
+	return p[1];
+}
+
 /*
  * Builds the tip configuration table: reads the tip calibration data fron tipcal.dat
  * and save index of calibrated tip into tip_table
@@ -546,7 +563,7 @@ void CFG_CORE::setDefaults(void) {
 	a_cfg.t12_temp			= 235;
 	a_cfg.jbc_temp			= 235;
 	a_cfg.gun_temp			= 200;
-	a_cfg.gun_fan_speed		= 1200;
+	a_cfg.gun_fan_speed		= 20;							// percents
 	a_cfg.t12_off_timeout	= 5;
 	a_cfg.t12_low_temp		= 180;
 	a_cfg.t12_low_to		= 5;
@@ -555,6 +572,7 @@ void CFG_CORE::setDefaults(void) {
 	a_cfg.bit_mask			= CFG_CELSIUS | CFG_BUZZER | CFG_U_CLOCKWISE | CFG_L_CLOCKWISE | CFG_BIG_STEP;
 	a_cfg.boost				= 80;
 	a_cfg.dspl_bright		= 128;
+	a_cfg.def_ambient		= default_ambient;				// See vars.h
 	a_cfg.dspl_rotation		=  1;							// TFT_ROTATION_90;
 	a_cfg.gun_off_timeout	= 0;
 	a_cfg.gun_low_temp		= 180;
@@ -570,9 +588,9 @@ void CFG_CORE::setPIDdefaults(void) {
 	pid.jbc_Kp			= 1479;
 	pid.jbc_Ki			=   59;
 	pid.jbc_Kd			=  507;
-	pid.gun_Kp			=  100; // 200
-	pid.gun_Ki			=   32; // 64
-	pid.gun_Kd			=  200; // 195
+	pid.gun_Kp			=  300; // 100
+	pid.gun_Ki			=   20; // 32
+	pid.gun_Kd			=    0; // 200
 };
 
 // PID parameters: Kp, Ki, Kd for smooth work, i.e. tip calibration
@@ -584,6 +602,11 @@ PIDparam CFG_CORE::pidParamsSmooth(tDevice dev) {
 	} else {
 		return PIDparam(500, 3, 1700);
 	}
+}
+
+uint16_t CFG_CORE::gunFanPreset(void) {
+	const uint16_t *p = (a_cfg.bit_mask & CFG_FAN_24)?fan_speed_24v:fan_speed_12v;
+	return map(a_cfg.gun_fan_speed, 0, 100, p[0], p[1]);
 }
 
 uint8_t	CFG_CORE::getOffTimeout(tDevice dev) {
@@ -620,7 +643,8 @@ const char *CFG_CORE::getLanguage(void) {
 }
 
 // Apply main configuration parameters: automatic off timeout, buzzer and temperature units
-void CFG_CORE::setup(bool buzzer, bool celsius, bool big_temp_step, bool i_enc, bool g_enc, bool ips_display, bool safe_iron_mode, uint8_t bright) {
+void CFG_CORE::setup(bool buzzer, bool celsius, bool big_temp_step, bool i_enc, bool g_enc, bool ips_display, bool safe_iron_mode,
+						uint8_t bright, uint8_t def_ambient) {
 	bool cfg_celsius		= a_cfg.bit_mask & CFG_CELSIUS;
 	if (cfg_celsius	!= celsius) {							// When we change units, the temperature should be converted
 		if (celsius) {										// Translate preset temp. from Fahrenheit to Celsius
@@ -642,6 +666,7 @@ void CFG_CORE::setup(bool buzzer, bool celsius, bool big_temp_step, bool i_enc, 
 	if (ips_display)	a_cfg.bit_mask |= CFG_DSPL_TYPE;
 	if (safe_iron_mode)	a_cfg.bit_mask |= CFG_SAFE_MODE;
 	a_cfg.dspl_bright	= constrain(bright, 1, 255);
+	a_cfg.def_ambient	= constrain(def_ambient, default_ambient_min, default_ambient_max); // See vars.h
 	if (safe_iron_mode) {									// Limit the iron preset temperature
 		uint16_t t_max = tempMax(d_t12);
 		if (a_cfg.t12_temp > t_max) a_cfg.t12_temp = t_max;
@@ -671,11 +696,16 @@ void CFG_CORE::setupJBC(uint8_t off_timeout, uint16_t stby_temp) {
 	a_cfg.jbc_off_timeout	= constrain(off_timeout, 0, 30);
 }
 
-void CFG_CORE::setupGUN(bool fast_gun_chill, uint8_t stby_timeout, uint16_t stby_temp) {
+void CFG_CORE::setupGUN(bool fast_gun_chill, bool is_fan_24v, uint8_t stby_timeout, uint16_t stby_temp) {
 	if (fast_gun_chill) {
 		a_cfg.bit_mask		|= CFG_FAST_COOLING;
 	} else {
 		a_cfg.bit_mask		&= ~CFG_FAST_COOLING;
+	}
+	if (is_fan_24v) {
+		a_cfg.bit_mask		|= CFG_FAN_24;
+	} else {
+		a_cfg.bit_mask		&= ~CFG_FAN_24;
 	}
 	a_cfg.gun_off_timeout	= stby_timeout;
 	a_cfg.gun_low_temp		= stby_temp;
@@ -688,9 +718,10 @@ void CFG_CORE::savePresetTempHuman(uint16_t temp_set, tDevice dev_type) {
 		a_cfg.jbc_temp = temp_set;
 }
 
-void CFG_CORE::saveGunPreset(uint16_t temp_set, uint16_t fan) {
+void CFG_CORE::saveGunPreset(uint16_t temp_set, uint8_t fan) {
 	a_cfg.gun_temp 		= temp_set;
-	a_cfg.gun_fan_speed	= fan;
+	if (fan <= 100)
+		a_cfg.gun_fan_speed	= fan;
 }
 
 void CFG_CORE::syncConfig(void)	{

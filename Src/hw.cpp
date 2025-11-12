@@ -1,26 +1,25 @@
 /*
  * hw.cpp
  *
- * 2024 NOV 16, v.1.00
+ * 2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
  *  2025 JAN 28
  *		Separate ambientTemp() into two routines to calculate stm32 temperature and steinhart sensor temperature inside Hakko T12 handle
  *		Save MCU internal temperature at startup to adjust internal temperature. As soon as the MCU temperature is higher than actual ambient temperature,
  *		return average value between MCU temperature and MCU temperature at startup.
+ *	2025 NOV 11, v1.03
+ *		Replaced the MCU temperature readings with preset value via preference menu. Used as ambient temperature when T12 handle is not connected.
+ *		Modified the HW::ambientTemp() to remove calculating the MCU temperature
+ *		Modified the HW::init() to remove initialization of deleted variables
  */
 
 #include <math.h>
 #include "hw.h"
 
-CFG_STATUS HW::init(uint16_t iron_temp, uint16_t gun_temp, uint16_t ambient, uint16_t vref, uint32_t t_mcu) {
+CFG_STATUS HW::init(uint16_t iron_temp, uint16_t gun_temp, uint16_t ambient) {
 	dspl.init();
 	t_amb.length(ambient_emp_coeff);
 	t_amb.reset(ambient);
-	vrefint.length(ambient_emp_coeff);
-	vrefint.reset(vref);
-	t_stm32.length(ambient_emp_coeff);
-	t_stm32.reset(t_mcu);
-	start_temp = internalTemp(t_mcu);						// Save temperature at controller startup
 
 	// Determine the IRON type, JBC or T12
 	tDevice iron_type = d_t12;
@@ -50,10 +49,13 @@ CFG_STATUS HW::init(uint16_t iron_temp, uint16_t gun_temp, uint16_t ambient, uin
 	}
 	cfg.keepMounted(false);									// Now the FLASH drive can be unmount for safety data
 	cfg.umount();
-	PIDparam pp   		= 	cfg.pidParams(iron_type);		// load T12 or JBC IRON PID parameters
+	PIDparam pp   		= cfg.pidParams(iron_type);			// load T12 or JBC IRON PID parameters
 	iron.load(pp);
-	pp					=	cfg.pidParams(d_gun);			// load Hot Air Gun PID parameters
+	pp					= cfg.pidParams(d_gun);				// load Hot Air Gun PID parameters
 	hotgun.load(pp);
+	uint16_t min_speed	= cfg.minFanSpeed();
+	uint16_t max_speed	= cfg.maxFanSpeed();
+	hotgun.setFanLimits(min_speed, max_speed);
 	buzz.activate(cfg.isBuzzerEnabled());
 	u_enc.setClockWise(cfg.isUpperEncClockWise());
 	l_enc.setClockWise(cfg.isLowerEncClockWise());
@@ -69,18 +71,9 @@ CFG_STATUS HW::init(uint16_t iron_temp, uint16_t gun_temp, uint16_t ambient, uin
 int32_t	HW::ambientTemp(void) {
 	static int32_t	raw_ambient 			= 0;			// Previous value of ambient temperature (RAW)
 	static int32_t 	cached_ambient 			= 0;			// Previous value of the ambient temperature
-	static int32_t	raw_stm32				= 0;			// Previous value of MCU temperature (RAW)
-	static int32_t	cached_stm32			= 0;			// Previous value of the MCU temperature
 
-	if (noAmbientSensor()) {								// No T12 IRON handle is connected, calculate MCU internal temperature
-		if (abs(t_stm32.read() - raw_stm32) < 4)			// About 1 Celsius degree
-			return cached_stm32;
-
-		raw_stm32 = t_stm32.read();
-		cached_stm32 = internalTemp(raw_stm32);
-		cached_stm32 += start_temp + 1;					// Return average temperature because the MCU is hotter than soldering handle
-		cached_stm32 >>= 1;
-		return cached_stm32;
+	if (noAmbientSensor()) {								// No T12 IRON handle is connected, return default value
+		return cfg.getDefAmbient();
 	}
 	if (abs(t_amb.read() - raw_ambient) < 25)				// About 1 Celsius degree
 		return cached_ambient;
@@ -92,18 +85,6 @@ int32_t	HW::ambientTemp(void) {
 		cached_ambient	= default_ambient;
 	}
 	return cached_ambient;
-}
-
-int32_t HW::internalTemp(int32_t raw_stm32) {
-	static const uint32_t	v_ref_int		= 12000;		// Internal voltage reference (1.2 * 10000)
-	static const uint32_t	v_at_25c		= 14300;		// Internal voltage at 25 degrees (1.43 * 10000)
-	static const uint32_t	avg_slope		= 43000;		// AVG Slope (4.3 * 10000)
-
-	// v_sense = (float)(raw_stm32 * v_ref_int/vrefint_v)
-    // Temperature = (((v_at_25c - v_sense) * 1000.0) /avg_slope) + 25.0;
-	int32_t vrefint_v = vrefint.read();
-	int32_t v_sense = (raw_stm32 * v_ref_int + (vrefint_v>>1)) / vrefint_v;  // *10000
-	return ((v_at_25c - v_sense) * 1000 + (avg_slope>>1)) / avg_slope + 25;
 }
 
 int32_t HW::steinhartTemp(int32_t raw_ambient) {
