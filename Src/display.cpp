@@ -1,11 +1,13 @@
 /*
  * display.cpp
  *
- * 2024 NOV 16, v.1.00
+ * 2024 NOV 16, v1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
- *  2025 MAR 05, v.1.01
+ *  2025 MAR 05, v1.01
  *  	Added erasingFlash() to implement flash erasing procedure
  *  	Modified the DSPL::init() to fix bug in bm_adc_read initialization
+ *  2026 FEB 17, v1.04
+ *  	Modified the DSPL::debugShow() to show the number of errors in ADC readings
  */
 
 #include <string.h>
@@ -563,7 +565,7 @@ void DSPL::drawTipList(TIP_ITEM list[], uint8_t list_len, uint8_t index, bool na
 	if (!name_only)											// The checkbox size is 16 and space between checkbox and tip name is 10
 		w += 16+10;
 	uint8_t bm_height = getMaxCharHeight();
-	BITMAP tip_entry(w, bm_height);				// The bitmap for tip name and activated mark
+	BITMAP tip_entry(w, bm_height);							// The bitmap for tip name and activated mark
 	uint16_t left = 0;
 	if (w < width())										// Tip list aligned center
 		 left = (width() - w)>>1;
@@ -1092,7 +1094,7 @@ void DSPL::showVersion(void) {
 }
 
 void DSPL::debugShow(uint16_t data[11], bool iron_on, bool gun_on, bool iron_connected, bool gun_connected, bool gun_reed, bool type_jbc, bool tilt_stby, bool jbc_change, bool gtim_ok) {
-	static const char *item_name[11] = {
+	static const char *item_name[12] = {
 			"iPwr:",
 			"gFan:",
 			"iCur:",
@@ -1103,7 +1105,8 @@ void DSPL::debugShow(uint16_t data[11], bool iron_on, bool gun_on, bool iron_con
 			"TIM1:",
 			"iDsp:",
 			"gDsp:",
-			"amb.:"
+			"amb.:",
+			"aErr:"
 	};
 	char buff[10];
 	setFont(debug_font);
@@ -1121,7 +1124,6 @@ void DSPL::debugShow(uint16_t data[11], bool iron_on, bool gun_on, bool iron_con
 		// Draw right column
 		clr = fg_color;
 		bm.clear();
-		if (i == 5) break;												// Last line has left column only
 		sprintf(buff, "%5d", data[2*i+1]);								// Right column value string
 		strToBitmap(bm, item_name[2*i+1], align_left);					// Right column name
 		strToBitmap(bm, buff, align_right);

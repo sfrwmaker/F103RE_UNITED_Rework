@@ -7,7 +7,9 @@
  * 		Modified the MWORK::loop() and MWORK::manageEncoders() to save the preset temperature after save_preset_to timeout the encoder was rotated
  * 	2025 NOV 02, v1.03
  * 		Modified the MWORK::manageEncoders() to manage the fan speed in percents
- *
+ * 	2026 FEB 18, v1.04
+ * 		Added MWORK::switchToFanSpeedMode() and MWORK::switchToTempMode()
+ *		Modified the MWORK::manageEncoders() to implement the Hot Air Gun encoder mode while the Gun is running
  */
 
 #include "work_mode.h"
@@ -22,6 +24,7 @@ void MWORK::init(void) {
 
 	ambient					= pCore->ambientTemp();
 	uint16_t 	fan			= pCFG->gunFanPreset();
+	edit_temp				= true;							// Edit Hot Air Gun preset temperature in standby mode
 	pHG->setFan(fan);										// Setup the Hot Air Gun fan speed to be able to use the pHG->presetFanPcnt() (see below)
 	DASH::init();											// Initializes the iron_dev type
 	// Initialize devices with a preset temperature
@@ -47,7 +50,7 @@ void MWORK::init(void) {
 	swoff_time		= 0;
 	check_jbc_tm	= 0;
 	edit_temp		= true;
-	return_to_temp	= 0;
+	return_to_def	= 0;
 	gun_switch_off	= 0;
 	pD->clear();
 	initDevices(true, true);
@@ -182,8 +185,9 @@ void MWORK::manageHardwareSwitches(CFG* pCFG, IRON *pIron, HOTGUN *pHG) {
 			pHG->setTemp(temp);
 			pHG->setFan(fan);
 			pHG->switchPower(true);
-			edit_temp		= true;
-			return_to_temp	= 0;
+			if (pCFG->isGunEncoderFan())
+				switchToFanSpeedMode();
+			return_to_def	= 0;
 			update_screen	= 0;
 		}
 	} else {												// The Reed switch is closed, switch the Hot Air Gun OFF
@@ -201,8 +205,11 @@ void MWORK::manageHardwareSwitches(CFG* pCFG, IRON *pIron, HOTGUN *pHG) {
 				gunStandby();
 			} else {										// Switch-off the JBC IRON immediately
 				pHG->switchPower(false);
+				if (pCFG->isGunEncoderFan())
+					switchToTempMode();
 				pCFG->saveConfig();							// Save configuration when the Hot Air Gun is turned-off
 				devicePhase(d_gun, IRPH_OFF);
+				return_to_def	= 0;
 			}
 			update_screen	= 0;
 		}
@@ -436,6 +443,33 @@ void MWORK::jbcReadyMode(void) {
 	}
 }
 
+void MWORK::switchToFanSpeedMode(void) {
+	CFG		*pCFG	= &pCore->cfg;
+	uint16_t min	= pCFG->minFanSpeed();
+	uint16_t max 	= pCFG->maxFanSpeed();
+	uint16_t fan 	= pCore->hotgun.presetFan();
+	fan				= map(fan, min, max, 0, 100);	// fan speed, percents
+	pCore->l_enc.reset(fan, 0, 100, 1, 5, false);
+	edit_temp 		= false;
+	fanSpeed(true);
+	update_screen 	= 0;
+}
+
+void MWORK::switchToTempMode(void) {
+	CFG		*pCFG	= &pCore->cfg;
+	uint16_t g_temp		= pCFG->tempPresetHuman(d_gun);
+	uint16_t t_min		= pCFG->tempMin(d_gun);			// The minimum preset temperature
+	uint16_t t_max		= pCFG->tempMax(d_gun);			// The maximum preset temperature
+	uint8_t temp_step = 1;
+	if (pCFG->isBigTempStep()) {						// The preset temperature step is 5 degrees
+		g_temp -= g_temp % 5;							// The preset temperature should be rounded to 5
+		temp_step = 5;
+	}
+	pCore->l_enc.reset(g_temp, t_min, t_max, temp_step, temp_step, false);
+	edit_temp		= true;
+	fanSpeed(false);									// Redraw in standard mode
+}
+
 bool MWORK::manageEncoders(void) {
 	HOTGUN 	*pHG		= &pCore->hotgun;
 	CFG		*pCFG		= &pCore->cfg;
@@ -487,19 +521,16 @@ bool MWORK::manageEncoders(void) {
 		}
 		// the HOT AIR GUN button was pressed, toggle temp/fan
 		if (edit_temp) {									// Switch to edit fan speed
-			uint16_t min	= pCFG->minFanSpeed();
-			uint16_t max 	= pCFG->maxFanSpeed();
-			uint16_t fan 	= pHG->presetFan();
-			fan				= map(fan, min, max, 0, 100);	// fan speed, percents
-			pCore->l_enc.reset(fan, 0, 100, 1, 5, false);
-			edit_temp 		= false;
-			temp_set_h		= fan;
-			return_to_temp	= HAL_GetTick() + edit_fan_timeout;
-			fanSpeed(true);
+			switchToFanSpeedMode();
+			temp_set_h	= pCore->l_enc.read();				// Re-read the lower encoder value (fan speed)
+			if (!pCFG->isGunEncoderFan())
+				return_to_def = HAL_GetTick() + edit_fan_timeout;
 			update_screen 	= 0;
 		} else {
-			return_to_temp	= HAL_GetTick();				// Force to return to edit temperature
-			return false;
+			switchToTempMode();
+			if (pCFG->isGunEncoderFan())
+				return_to_def = HAL_GetTick() + edit_fan_timeout;
+			update_screen 	= 0;
 		}
 	} else if (button == 2) {								// Go to the main menu
 		return true; 
@@ -522,25 +553,20 @@ bool MWORK::manageEncoders(void) {
 			uint16_t fan_speed = pCFG->gunFanPreset();		// Convert the fan speed in percent to raw value
 			pHG->setFan(fan_speed);
 			fanSpeed(true);									// Draw the fan speed
-			return_to_temp	= HAL_GetTick() + edit_fan_timeout;
 		}
+		if (pCFG->isGunEncoderFan() == edit_temp)
+			return_to_def	= HAL_GetTick() + edit_fan_timeout;
 		enc_changed_ms = HAL_GetTick();						// The preset temperature just has been changed
     }
 
-    // The fan speed modification mode has 'return_to_temp' timeout
-	if (return_to_temp && HAL_GetTick() >= return_to_temp) {// This reads the Hot Air Gun configuration Also
-		uint16_t g_temp		= pCFG->tempPresetHuman(d_gun);
-		uint16_t t_min		= pCFG->tempMin(d_gun);			// The minimum preset temperature
-		uint16_t t_max		= pCFG->tempMax(d_gun);			// The maximum preset temperature
-		uint8_t temp_step = 1;
-		if (pCFG->isBigTempStep()) {						// The preset temperature step is 5 degrees
-			g_temp -= g_temp % 5;							// The preset temperature should be rounded to 5
-			temp_step = 5;
+    // The Hot Air Gun modification mode has 'return_to_def' timeout
+	if (return_to_def && HAL_GetTick() >= return_to_def) {	// This reads the Hot Air Gun configuration Also
+		if (pCFG->isGunEncoderFan()) {
+			switchToFanSpeedMode();
+		} else {
+			switchToTempMode();
 		}
-		pCore->l_enc.reset(g_temp, t_min, t_max, temp_step, temp_step, false);
-		edit_temp		= true;
-		fanSpeed(false);									// Redraw in standard mode
-		return_to_temp	= 0;
+		return_to_def	= 0;
 	}
 	return false;
 }

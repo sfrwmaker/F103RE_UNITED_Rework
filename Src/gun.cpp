@@ -13,6 +13,8 @@
  *  2025 NOV 02, v1.03
  *  	Added support for 12v Hot Air Gun (Fan can be 12v or 24v capable)
  *  		Created HOTGUN::setFanLimits()
+ *  2026 FEB 18, v1.04
+ *  	Changed the HOTGUN::fanSpeed() and HOTGUN::setFanLimits() to correctly setup maximum fan speed
  */
 
 #include "gun.h"
@@ -38,6 +40,9 @@ void HOTGUN::init(void) {
 	d_temp.length(ec);
 	PID::init(1200, 13, false);								// Initialize PID for Hot Air Gun, 1Hz. Do not forcible heat!
     resetPID();
+    uint16_t max_fan = FAN_TIM.Instance->CCR4;
+    if (max_fan_speed > max_fan)
+    	max_fan_speed = max_fan;
 }
 
 uint8_t HOTGUN::avgPowerPcnt(void) {
@@ -56,12 +61,14 @@ uint16_t HOTGUN::appliedPower(void) {
 }
 
 uint16_t HOTGUN::fanSpeed(void) {
-	return constrain(FAN_TIM.Instance->CCR2, 0, 1999);
+	uint16_t max_fan = FAN_TIM.Instance->CCR4;
+	return constrain(FAN_TIM.Instance->CCR2, 0, max_fan);
 }
 
 void HOTGUN::setFanLimits(uint16_t min_speed, uint16_t max_speed) {
-	min_fan_speed = constrain(min_speed, 0, 1999);
-	max_fan_speed = constrain(max_speed, 0, 1999);
+	uint16_t max_fan = FAN_TIM.Instance->CCR4;
+	min_fan_speed = constrain(min_speed, 0, max_fan);
+	max_fan_speed = constrain(max_speed, 0, max_fan);
 }
 
 void HOTGUN::fanFixed(uint16_t fan) {

@@ -14,6 +14,9 @@
  *  2025 NOV 11. v1.03
  *  	Modified the CFG_CORE::setup() to setup default ambient temperature value
  *  	Modified CFG_CORE::setDefaults()
+ *  2026 FEB 18, v1.04
+ *  	Modified the CFG_CORE::setupGUN() to manage new parameter, is_enc_fan
+ *  	Changed Hot Air Gun PID parameters in CFG_CORE::setPIDdefaults()
  */
 
 #include <stdlib.h>
@@ -588,9 +591,9 @@ void CFG_CORE::setPIDdefaults(void) {
 	pid.jbc_Kp			= 1479;
 	pid.jbc_Ki			=   59;
 	pid.jbc_Kd			=  507;
-	pid.gun_Kp			=  300; // 100
-	pid.gun_Ki			=   20; // 32
-	pid.gun_Kd			=    0; // 200
+	pid.gun_Kp			=  500; // 300, 100
+	pid.gun_Ki			=   50; // 20, 32
+	pid.gun_Kd			=  350; // 0, 200
 };
 
 // PID parameters: Kp, Ki, Kd for smooth work, i.e. tip calibration
@@ -696,7 +699,7 @@ void CFG_CORE::setupJBC(uint8_t off_timeout, uint16_t stby_temp) {
 	a_cfg.jbc_off_timeout	= constrain(off_timeout, 0, 30);
 }
 
-void CFG_CORE::setupGUN(bool fast_gun_chill, bool is_fan_24v, uint8_t stby_timeout, uint16_t stby_temp) {
+void CFG_CORE::setupGUN(bool fast_gun_chill, bool is_fan_24v, bool is_enc_fan, uint8_t stby_timeout, uint16_t stby_temp) {
 	if (fast_gun_chill) {
 		a_cfg.bit_mask		|= CFG_FAST_COOLING;
 	} else {
@@ -706,6 +709,11 @@ void CFG_CORE::setupGUN(bool fast_gun_chill, bool is_fan_24v, uint8_t stby_timeo
 		a_cfg.bit_mask		|= CFG_FAN_24;
 	} else {
 		a_cfg.bit_mask		&= ~CFG_FAN_24;
+	}
+	if (is_enc_fan) {
+		a_cfg.bit_mask		|= CFG_GUN_ENC_FAN;
+	} else {
+		a_cfg.bit_mask		&= ~CFG_GUN_ENC_FAN;
 	}
 	a_cfg.gun_off_timeout	= stby_timeout;
 	a_cfg.gun_low_temp		= stby_temp;

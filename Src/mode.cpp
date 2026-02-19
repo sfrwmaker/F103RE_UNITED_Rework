@@ -10,6 +10,8 @@
  *  	Modified the MDEBUG::loop() to manage the fan manually
  *  2025 NOV 02, v1.03
  *  	Modified the MDEBUG::loop() to manage the fan speed correctly
+ *  2026 FEB 17, v1.04
+ *  	Modified the MDEBUG::loop() to show number of ADC reading errors
  *
  */
 
@@ -1411,7 +1413,7 @@ MODE* MDEBUG::loop(void) {
 	if (HAL_GetTick() < update_screen) return this;
 	update_screen = HAL_GetTick() + 491;					// The screen update period is a primary number to update TIM1 counter value
 
-	uint16_t data[11];
+	uint16_t data[12];
 	data[0]	= iron_on?old_ip:0;								// iron power
 	data[1]	= old_fp;										// Fan power
 	data[2]	= pCore->iron.unitCurrent();					// The current through the iron
@@ -1423,6 +1425,7 @@ MODE* MDEBUG::loop(void) {
 	data[8] = constrain(pIron->tmpDispersion(), 0, 999);	// t12 or jbc temperature dispersion
 	data[9] = constrain(pHG->tmpDispersion(),   0, 999);	// Hot Air Gun temperature dispersion
 	data[10]= pCore->ambientRaw();							// The Hakko T12 handle ambient temperature
+	data[11]= adcErrors();									// Number of errors when ADC running
 
 	bool gtim_ok = isACsine() && (abs(data[7] - 1000) < 50);
 	if (!gtim_ok && data[7] == 1000) data[7] = 0;			// The isACsine() is false: no AC zero signal

@@ -7,6 +7,8 @@
  *  	Added "Fan voltage" menu item into MENU_GUN
  *  2025 NOV 11, v1.03
  *  	Added "ambient" menu item into MSETUP
+ *  2026 FEB 18, v1,04
+ *  	Modified the MENU_GUN::init() and MENU_GUN::loop() to add "Encoder mode" menu item
  */
 #include "menu.h"
 
@@ -739,6 +741,7 @@ void MENU_GUN::init(void) {
 	stby_timeout	= pCFG->getOffTimeout(d_gun);
 	stby_temp		= pCFG->getLowTemp(d_gun);
 	is_fan_24v		= pCFG->isFan24v();
+	is_enc_speed	= pCFG->isGunEncoderFan();
 	set_param		= -1;
 	uint8_t m_len 	= pCore->dspl.menuSize(MSG_MENU_GUN);
 	uint8_t pos		= pCFG->isTipCalibrated(d_gun)?0:MG_CALIBRATE;
@@ -797,10 +800,13 @@ MODE* MENU_GUN::loop(void) {
 				case MG_FAN_VOLTAGE:
 					is_fan_24v	= !is_fan_24v;
 					break;
+				case MG_ENC_MODE:
+					is_enc_speed = !is_enc_speed;
+					break;
 				case MG_SAVE:									// save
 				{
 					pD->BRGT::dim(50);							// Turn-off the brightness, processing
-					pCFG->setupGUN(fast_gun_chill, is_fan_24v, stby_timeout, stby_temp);
+					pCFG->setupGUN(fast_gun_chill, is_fan_24v, is_enc_speed, stby_timeout, stby_temp);
 					pCFG->saveConfig();
 					bool fast_cooling	= pCFG->isFastGunCooling();
 					uint16_t min_speed	= pCFG->minFanSpeed();	// Update the Hot Air Gun fan limits depending on fan voltage
@@ -877,6 +883,12 @@ MODE* MENU_GUN::loop(void) {
 			} else {
 				strcpy(item_value, "12v");
 			}
+			break;
+		case MG_ENC_MODE:
+		{
+			e_msg val = is_enc_speed?MSG_ENC_FAN:MSG_ENC_TEMP;
+			strncpy(item_value, pD->msg(val), value_length);
+		}
 			break;
 		default:
 			item_value[0] = '\0';

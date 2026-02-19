@@ -15,14 +15,17 @@
  * 		Changed the HAL_ADC_ConvCpltCallback() routine to calculate Hot Gun temperature more accurately by 4 samples
  * 	2025 NOV 11, v1.03
  * 		Replaced the MCU temperature readings with preset value via preference menu. Used as ambient temperature when T12 handle is not connected.
+ *	2026 FEB 17, v1.04
+ *		Changed ADC readings method. Single ADC1 circuit is used to read all the parameters.
+ *		Hot Air Gun temperature is checking when FAN power in not active (at the end of TIM2 period)
  *
  *  Hardware configuration:
  *  Analog pins:
- *  A2	- IRON temperature, ADC3
+ *  A2	- IRON temperature, ADC1
  *  A4	- IRON current, ADC1
  *  A5	- FAN current, ADC1
  *  A6	- GUN temperature, ADC1
- *  C0  - Ambient temperature, ADC3
+ *  C0  - Ambient temperature, ADC1
  *  TIM2:
  *  A0	- TIM2_CH1, IRON power [0-1999]
  *  A1	- TIM2_CH2,	FAN  power [0-1999]
@@ -66,12 +69,10 @@
 #include "vars.h"
 
 // Activated ADC Ranks Number (hadc1.Init.NbrOfConversion)
-#define ADC1_CUR 			(6)
-#define ADC3_TEMP			(5)
+#define ADC_CONV 			(5)
 #define MAX_GUN_POWER		(120)
 
 extern ADC_HandleTypeDef	hadc1;
-extern ADC_HandleTypeDef	hadc3;
 extern TIM_HandleTypeDef	htim2;
 extern TIM_HandleTypeDef	htim3;
 
@@ -81,8 +82,7 @@ volatile static uint32_t	errors		= 0;
 
 typedef enum { ADC_IDLE, ADC_CURRENT, ADC_TEMP } t_ADC_mode;
 volatile static t_ADC_mode	adc_mode = ADC_IDLE;
-volatile static uint16_t	adc1_buff[ADC1_CUR];			// Current data: IRON, FAN, (GUN temperature)*4
-volatile static uint16_t	adc3_buff[ADC3_TEMP];			// Temperature data: IRON * 4, AMBIENT
+volatile static uint16_t	adc_buff[ADC_CONV];				// ADC1 conversion data
 volatile static uint32_t	gtim_last_ms	= 0;			// Time when the last AC_ZERO interrupt received
 volatile static	bool		ac_sine		= false;			// Flag indicating that TIM3 has received the external interrupt on AC_ZERO pin
 volatile static uint8_t		gun_pwr[MAX_GUN_POWER*2] = {0};	// The HOT GUN power PWM buffer
@@ -117,6 +117,7 @@ static	MODE*           pMode = &work;
 
 bool 		isACsine(void)		{ return ac_sine; 				}
 uint16_t	gtimPeriod(void)	{ return gtim_period.read();	}
+uint16_t	adcErrors(void)		{ return errors;				}
 
 // Synchronize TIM2 timer to AC power. The main timer managing IRON and FAN
 static uint16_t syncAC(uint16_t tim_cnt) {
@@ -181,27 +182,16 @@ static void powerOffGun(void) {
 }
 
 extern "C" void setup(void) {
-	HAL_ADCEx_Calibration_Start(&hadc1);					// Calibrate both ADCs
-	HAL_ADCEx_Calibration_Start(&hadc3);
+	HAL_ADCEx_Calibration_Start(&hadc1);					// Calibrate ADC
 
+	// Read the IRON temperature and ambient temperature
+	// ADC1 readings are: [iron_cunnent, fan_current, iron_temp, gun_temp, ambient]
 	adc_manual = true;										// Manage DMA reading buffer manually, see HAL_ADC_ConvCpltCallback()
-	HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc3_buff, ADC3_TEMP);	// ADC3 reads the IRON temperature and ambient temperature
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buff, ADC_CONV);
 	while (adc_manual) { }									// Wait for ADC readings
-	uint16_t iron_temp = adc3_buff[0];
-	for (uint8_t i = 1; i < 4; ++i)							// adc3_buff[0-3] is the IRON temperature
-		iron_temp += adc3_buff[i];
-	iron_temp += 2; iron_temp >>= 2;
-	uint16_t ambient = adc3_buff[4];						// adc3_buff[4] is ambient temperature (sensor inside T12 handle)
-
-	// ADC1 reads [iron_current, fan_current, gun_temp]
-	adc_manual = true;										// Manage DMA reading buffer manually, see HAL_ADC_ConvCpltCallback()
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc1_buff, ADC1_CUR);
-	while (adc_manual) { }									// Wait for ADC readings
-	uint16_t gun_temp	= 0;
-	for (uint8_t i = 2; i < 6; ++i) {
-		gun_temp += adc1_buff[i];							// The Gun temperature is measured 4 times
-	}
-	gun_temp >>= 2;											// Divide by 4
+	uint16_t iron_temp	= adc_buff[2];
+	uint16_t ambient	= adc_buff[4];						// sensor inside T12 handle
+	uint16_t gun_temp	= adc_buff[3];
 
 	gtim_period.length(10);
 	gtim_period.reset(1000);								// Default TIM1 period, ms
@@ -320,29 +310,14 @@ extern "C" void loop(void) {
 	}
 }
 
-static bool adcStartCurrent(void) {							// Check the current by ADC3
+static bool adcStart(void) {								// Check the current and temperatures by ADC1
     if (adc_mode != ADC_IDLE) {								// Not ready to check analog data; Something is wrong!!!
     	TIM2->CCR1 = 0;										// Switch off the IRON
-    	TIM2->CCR2 = 0;										// Switch off the FAN
     	TIM3->CCR4 = 0;										// Switch off the Hot Air Gun
     	++errors;
 		return false;
     }
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc1_buff, ADC1_CUR);
-	adc_mode = ADC_CURRENT;
-	return true;
-}
-
-static bool adcStartTemp(void) {							// Check the temperature by ADC1 & ADC2
-    if (adc_mode != ADC_IDLE) {								// Not ready to check analog data; Something is wrong!!!
-    	TIM2->CCR1 = 0;										// Switch off the IRON
-    	TIM2->CCR2 = 0;										// Switch off the FAN
-    	TIM3->CCR4 = 0;										// Switch off the Hot Air Gun
-    	++errors;
-		return false;
-    }
-    HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc3_buff, ADC3_TEMP);
-	adc_mode = ADC_TEMP;
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buff, ADC_CONV);
 	return true;
 }
 
@@ -356,56 +331,43 @@ static bool adcStartTemp(void) {							// Check the temperature by ADC1 & ADC2
 extern "C" void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM2) {
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3) {
-			adcStartCurrent();
+			if (adcStart())
+			    adc_mode = ADC_CURRENT;
 		} else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_4) {
-			adcStartTemp();
+			if (adcStart())
+				adc_mode = ADC_TEMP;
 		}
 	}
 }
 
 /*
  * IRQ handler of ADC complete request.
- * ADC1 used to check the current through the IRON, current through the FAN and the Hot Air Gun temperature
- * 		[iron_current, fan_current, gun_temp, vrefint, internal_temp]
- * ADC3 used to check the IRON and ambient temperature
- * 		[iron_temp, iron_temp, iron_temp, iron_temp, ambient]
+ * ADC1 readings are: [iron_cunnent, fan_current, iron_temp, gun_temp, ambient]
  */
 extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
-	HAL_ADC_Stop(hadc);
+	HAL_ADC_Stop_DMA(hadc);
 	if (adc_manual) {										// Read the ADC value in setup() routine
 		adc_manual = false;
 		return;
 	}
-	if (hadc->Instance == ADC1) {
+	if (adc_mode == ADC_CURRENT) {
 		if (TIM2->CCR1 > 1) {								// The IRON has been powered
-			core.iron.updateCurrent(adc1_buff[0]);			// adc1_buff[0] is the current through the IRON
+			core.iron.updateCurrent(adc_buff[0]);			// adc_buff[0] is the current through the IRON
 		}
 		if (TIM2->CCR2 > 1) {								// The Hot Air Gun FAN has been powered
-			core.hotgun.updateCurrent(adc1_buff[1]);		// adc1_buff[1] is the current through the FAN
+			core.hotgun.updateCurrent(adc_buff[1]);			// adc_buff[1] is the current through the FAN
 		}
-		uint16_t gun_temp	= 0; 							// adc1_buff[4..7] are the Hot Air Gun temperature
-		uint16_t gun_min	= 4096;
-		uint16_t gun_max	= 0;
-		for (uint8_t i = 2; i <= 5; ++i) {
-			gun_temp += adc1_buff[i];
-			if (adc1_buff[i] > gun_max) gun_max = adc1_buff[i];
-			if (adc1_buff[i] < gun_min) gun_min = adc1_buff[i];
-		}
-		gun_temp -= gun_min + gun_max;
-		gun_temp += 1;
-		gun_temp >>= 1;
-		core.hotgun.updateTemp(gun_temp);
-	} else if (hadc->Instance == ADC3) {					// Ambient temperature checking
+	} else if (adc_mode == ADC_TEMP) {
 		// Check the IRON temperature and calculate the required power
-		uint32_t iron_temp = adc3_buff[0];
-		for (uint8_t i = 1; i < 4; ++i)						// adc3_buff[0-3] is the IRON temperature
-			iron_temp += adc3_buff[i];
-		iron_temp += 2; iron_temp >>= 2;
-		core.updateAmbient(adc3_buff[4]);					// adc3_buff[4] is ambient temperature (sensor inside T12 handle)
+		core.updateAmbient(adc_buff[4]);					// sensor inside T12 handle
+		core.hotgun.updateTemp(adc_buff[3]);
+		uint32_t iron_temp = adc_buff[2];
 		uint16_t iron_power = core.iron.power(iron_temp);
 		if (iron_power > max_iron_pwm)						// The required power is greater than timer period. Initialized in setup()
 			iron_power = max_iron_pwm;
 		TIM2->CCR1	= iron_power;
+		volatile uint16_t r = TIM2->CNT;
+		r++;
 	}
 	adc_mode = ADC_IDLE;
 }
