@@ -28,3 +28,8 @@ Revision history
   * You can manage the Hot Air Gun speed in debug mode.
   * Added support for Hot Air Gun with fan running 12 volts. You can select your fan voltage version in Hot Air Gum menu (12 or 24 volts)
   * Added default ambient temperature paramater in menu setup. You can set the value of your ambient temperature via parameters menu. The Hakko T12 handle has termistor to check the ambient, temperature but JBC handle has no one. The default ambient temperature used when JBC iron is in use.
+
+2025 FEB 19 v.1.04
+  * Changed approach for reading analog signals, especcially the Hot Air Gun temperature, now the Gun is working more reliably
+  * Changed the Hot Air Gun PID parameters
+  * Added configuration parameter to manage the rotary encoder mode while the Hot Air Gun is working. Now it is possible to choose the default encoder mode: change the preset temperature or change the fan speed
