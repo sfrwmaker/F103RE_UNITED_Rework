@@ -13,13 +13,17 @@
 		"cw": 						"w prawo",
 		"ccw": 						"w lewo",
 		"Set:": 					"Ustaw:",
+		"INFO":						"INFORMACJE"
 		"ERROR": 					"ERROR",
 		"Tune PID": 				"Ustawienia PID",
 		"Select tip": 				"Wybór grota",
 		"FLASH read error": 		"Błąd odczytu pamięci",
-		"FLASH write erro": 		"Błąd zapisu pamięci",
-		"No directory": 			"Brak katalogu",
+		"FLASH write error": 		"Błąd zapisu pamięci",
+		"FLASH erase error":		"Błąd kasowania FLASH",
+		"FLASH format complete":	"Zakończono formatowanie"
+		"No tip list":				"Brak listy grota",
 		"format FLASH?": 			"Formatować?",
+		"erase FLASH?":				"usunąć FLASH?",
 		"Failed to format FLASH": 	"Błąd formatowania",
 		"saving configuration": 	"Zapisywanie konfiguracji",
 		"Hot Gun": 					"Hot Gun",
@@ -28,13 +32,11 @@
 		"Save?": 					"Zapisać?",
 		"Yes": 						"Tak",
 		"No": 						"Nie",
-		"Delete file?": 			"Usunąć dane?",
-		"FLASH debug": 				"Debugowanie FLASHa",
-		"Failed mount SD": 			"Nieudane podłączenie SD",
-		"NO config file": 			"Brak pliku konfiguracyjnego",
-		"No lang. specified": 		"Brak określonego języka",
-		"No memory": 				"Brak pamięci",
-		"Inconsistent lang": 		"Niezgodny język"
+		"FLASH erase":				"Kasowanie FLASH",
+		"standby":					"gotowość",
+		"updating flash":			"przesyłanie plików",
+		"fan speed":				"prędkość wentyl.",
+		"temperature":				"temperatura"
 	},
 	"Menu": {
 		"Main Menu": {
@@ -55,9 +57,9 @@
 			"buzzer": 				"Buzzer",
 			"upper encoder": 		"górny encoder",
 			"lower encoder": 		"dolny encoder",
-			"fast gun chill":		"szybkie ochłodzenie hot-air",
 			"temp. step": 			"Skok temperatury",
 			"brightness": 			"Jasność",
+			"ambient":				"Temp. otoczenia",
 			"rotation": 			"obrót",
 			"language": 			"Język",
 			"display type":			"typ wyświetlacza",
@@ -80,26 +82,30 @@
 			"back to menu": 		"Powrót do menu"
 		},
 		"JBC iron setup": {
+			"JBC iron setup":		"Ustawienia grota JBC"
 			"auto off":				"Auto wył.",
 			"standby temp.": 		"Standby temp.",
 			"save": 				"Zapisz",
 			"calibrate tip": 		"kalibracja grota",
 			"back to menu": 		"Powrót do menu"
 		}
+		"HOT GUN setup": {
+			"HOT GUN setup": 		"Hot Air",
+			"fast chill":			"szybkie ochłodzenie",
+			"standby time":			"Czas oczekiwania",
+			"standby temp.":		"Standby temp.",
+			"fan voltage":			"Тapięcie wentyl.",
+			"encoder mode":			"Tryb kodera",
+			"save":					"Zapisz",
+			"calibrate gun": 		"Ustawienia Hot Air",
+			"back to menu":			"Wyjście",
+		},
 		"Calibrate": {
 			"Calibrate": 			"Kalibracja",
 			"automatic": 			"Automatyczna",
 			"manual": 				"Ręczna",
 			"clear": 				"Wyczyścić",
 			"quit": 				"Wyjście"
-		},
-		"Hot Air Gun": {
-			"Hot Air Gun": 			"Hot Air",
-			"calibrate": 			"Kalibracja",
-			"tune gun": 			"Ustawienia Hot Air",
-			"tune gun PID": 		"Ustawienia PID",
-			"clear": 				"Wyczyść",
-			"exit": 				"Wyjście"
 		},
 		"Tune PID": {
 			"Tune PID": 			"Regulacja PID",
@@ -109,11 +115,11 @@
 			"back to menu":			"Powrót do menu"
 		},
 		"Manage config": {
-			"Manage config":			"Manage config",
-			"Load lang data":			"Load lang data",
-			"Load config":				"Load config",
-			"Save config":				"Save config",
-			"quit":						"Wyjście"
+			"Manage config":		"Manage config",
+			"Load lang data":		"Load lang data",
+			"Load config":			"Load config",
+			"Save config":			"Save config",
+			"quit":					"Wyjście"
 		}		
 	}
 }

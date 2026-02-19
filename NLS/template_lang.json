@@ -2,7 +2,7 @@
 	"standalone": {
 		"OFF":							"",
 		"ON":							"",
-		"Fan:":							":",
+		"Fan:":							"",
 		"Pwr:":							"",
 		"Ref. #":						"",
 		"REED":							"",
@@ -13,13 +13,17 @@
 		"cw":							"",
 		"ccw":							"",
 		"Set:":							"",
+		"INFO":							"",
 		"ERROR":						"",
 		"Tune PID":						"",
 		"Select tip":					"",
 		"FLASH read error":				"",
-		"FLASH write erro":				"",
-		"No directory":					"",
+		"FLASH write error":			"",
+		"FLASH erase error":			"",
+		"FLASH format complete":		"",
+		"No tip list":					"",
 		"format FLASH?":				"",
+		"erase FLASH?":					"",
 		"Failed to format FLASH":		"",
 		"saving configuration":			"",
 		"Hot Gun":						"",
@@ -28,13 +32,11 @@
 		"Save?":						"",
 		"Yes":							"",
 		"No":							"",
-		"Delete file?":					"",
-		"FLASH debug":					"",
-		"Failed mount SD":				"",
-		"NO config file":				"",
-		"No lang. specified":			"",
-		"No memory":					"",
-		"Inconsistent lang":			""
+		"FLASH erase":					"",
+		"standby":						"",
+		"updating flash":				"",
+		"fan speed":					"",
+		"temperature":					""
 	},
 	"Menu": {
 		"Main Menu": {
@@ -57,6 +59,7 @@
 			"lower encoder":			"",
 			"temp. step":				"",
 			"brightness":				"",
+			"ambient":					"",
 			"rotation":					"",
 			"language":					"",
 			"display type":				"",
@@ -79,12 +82,24 @@
 			"back to menu":				""
 		},
 		"JBC iron setup": {
+			"JBC iron setup":			"",
 			"auto off":					"",
 			"standby temp.":			"",
 			"save":						"",
 			"calibrate tip":			"",
 			"back to menu":				""
-		}
+		},
+		"HOT GUN setup": {
+			"HOT GUN setup":			"",
+			"fast chill":				"",
+			"standby time":				"",
+			"standby temp.":			"",
+			"fan voltage":				"",
+			"encoder mode":				"",
+			"save":						"",
+			"calibrate gun":			"",
+			"back to menu":				""
+		},
 		"Calibrate": {
 			"Calibrate":				"",
 			"automatic":				"",
