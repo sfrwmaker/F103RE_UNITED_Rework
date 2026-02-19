@@ -8,6 +8,8 @@
  *  	Changed type of RECORD.gun_fan_speed from uint16_t to uint8_t to keep fan speed percentage, not raw value
  *	2025 NOV 11, v1.03
  *		Added new parameter - default ambient temperature, RECORD.def_ambient
+ *	2026 FEB 16, v1.04
+ *		Added Hot Air Gun encoder mode while is working
  */
 
 #ifndef CFGTYPES_H_
@@ -27,10 +29,12 @@
  * CFG_BIG_STEP		- The temperature step 1 degree (0) 5 degree (1)
  * CFG_DSPL_TYPE	- The display type IPS (true) or TFT (false)
  * CFG_SAFE_MODE	- Limit IRON high temperature
+ * CFG_FAN_24		- The voltage of Hot Air Gun fan (12v/24v)
+ * CFG_GUN_ENC_FAN	- Mode of the Hot Air Gun encoder while the Gun is working (temperature setup | fan speed setup)
  */
 typedef enum { CFG_CELSIUS = 1, CFG_BUZZER = 2, CFG_SWITCH = 4, CFG_AU_START = 8,
 				CFG_U_CLOCKWISE = 16, CFG_L_CLOCKWISE = 32, CFG_FAST_COOLING = 64, CFG_BIG_STEP = 128,
-				CFG_DSPL_TYPE = 256, CFG_SAFE_MODE = 512, CFG_FAN_24 = 1024 } CFG_BIT_MASK;
+				CFG_DSPL_TYPE = 256, CFG_SAFE_MODE = 512, CFG_FAN_24 = 1024, CFG_GUN_ENC_FAN = 2048 } CFG_BIT_MASK;
 
 typedef enum { d_t12 = 0, d_jbc = 1, d_gun = 2, d_unknown } tDevice;
 

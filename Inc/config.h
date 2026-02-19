@@ -10,6 +10,10 @@
  *  	Replaced the MCU temperature readings with preset value via preference menu. Used as ambient temperature when T12 handle is not connected.
  *  	Added CFG_CORE::getDefAmbient()
  *  	Added new parameter to CFG_CORE::setup()
+ *  2026 FEB 18, v1.04
+ *  	Decreased the CFG_CORE::fan_speed_24v[] max. fan speed to 1970 to ensure correct temperature readings
+ *  	Added CFG_CORE::isGunEncoderFan()
+ *  	Added new parameter into CFG_CORE::setupGUN()
  */
 
 #ifndef CONFIG_H_
@@ -45,6 +49,7 @@ class CFG_CORE: public TIPS {
 		bool		isIPS(void)							{ return a_cfg.bit_mask & CFG_DSPL_TYPE;	}
 		bool		isSafeIronMode(void)				{ return a_cfg.bit_mask & CFG_SAFE_MODE;	}
 		bool		isFan24v(void)						{ return a_cfg.bit_mask & CFG_FAN_24;		}
+		bool		isGunEncoderFan(void)				{ return a_cfg.bit_mask & CFG_GUN_ENC_FAN;	}
 		uint8_t		getLowTO(void)						{ return a_cfg.t12_low_to; 					}	// 5-seconds intervals
 		uint8_t		getDsplBrightness(void)				{ return a_cfg.dspl_bright;					}	// 1-255
 		uint8_t		getDsplRotation(void)				{ return a_cfg.dspl_rotation;				}
@@ -60,7 +65,7 @@ class CFG_CORE: public TIPS {
 		void		setup(bool buzzer, bool celsius, bool big_temp_step, bool i_enc, bool g_enc, bool ips_display, bool safe_iron_mode, uint8_t bright, uint8_t def_ambient);
 		void		setupT12(bool reed, bool auto_start, uint8_t off_timeout, uint16_t low_temp, uint8_t low_to, uint8_t delta_temp, uint16_t duration);
 		void		setupJBC(uint8_t off_timeout, uint16_t stby_temp);
-		void		setupGUN(bool fast_gun_chill, bool is_fan_24v, uint8_t stby_timeout, uint16_t stby_temp);
+		void		setupGUN(bool fast_gun_chill, bool is_fan_24v, bool is_enc_fan, uint8_t stby_timeout, uint16_t stby_temp);
 		void 		savePresetTempHuman(uint16_t temp_set, tDevice dev_type);
 		void		saveGunPreset(uint16_t temp, uint8_t fan = 101);
 		uint8_t		boostTemp(void);
@@ -84,7 +89,7 @@ class CFG_CORE: public TIPS {
 	private:
 		RECORD		s_cfg;								// spare configuration, used when save the configuration to the EEPROM
 		const uint16_t	fan_speed_12v[2]	= { 100, 1000 };
-		const uint16_t	fan_speed_24v[2]	= { 700, 1999 };
+		const uint16_t	fan_speed_24v[2]	= { 700, 1970 };
 };
 
 typedef struct s_TIP_RECORD	TIP_RECORD;

@@ -3,6 +3,8 @@
  *
  *  2024 NOV 16
  *  	Ported from JBC controller source code, tailored to the new hardware
+ *  2026 FEB 17, v1.04
+ *  	Added adcErrors() function
  */
 
 #ifndef CORE_H_
@@ -14,6 +16,7 @@
 // Forward function declaration
 bool 		isACsine(void);
 uint16_t	gtimPeriod(void);
+uint16_t	adcErrors(void);
 
 #ifdef __cplusplus
 extern "C" {

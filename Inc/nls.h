@@ -13,6 +13,9 @@
  *  	Added "Fan voltage" menu item into "HOT GUN setup" menu
  *  2025 NOV 11, v1.03
  *  	Added "ambient"  menu item into "Parameters" menu
+ *  2026 FEB 18, v1.04
+ *  	Added "Encoder mode" menu into Hot Air Gun setup
+ *  	Added "fan speed" and "temperature" messages
  */
 
 #ifndef MSG_NLS_H_
@@ -21,14 +24,14 @@
 #include <string>
 
 typedef enum e_msg { MSG_MENU_MAIN, MSG_MENU_SETUP = 10, MSG_MENU_T12 = 10+15, MSG_MENU_JBC = 10+15+11, MSG_MENU_GUN = 10+15+11+6,
-					 MSG_MENU_CALIB = 10+15+11+6+8, MSG_PID_MENU = 10+15+11+6+8+5, MSG_FLASH_MENU = 10+15+11+6+8+5+5,
-					MSG_ON = 10+15+11+6+8+5+5+5, MSG_OFF, MSG_FAN, MSG_PWR,
+					 MSG_MENU_CALIB = 10+15+11+6+9, MSG_PID_MENU = 10+15+11+6+9+5, MSG_FLASH_MENU = 10+15+11+6+9+5+5,
+					MSG_ON = 10+15+11+6+9+5+5+5, MSG_OFF, MSG_FAN, MSG_PWR,
 					MSG_REF_POINT, MSG_REED, MSG_TILT, MSG_DEG, MSG_MINUTES, MSG_SECONDS,
 					MSG_CW, MSG_CCW, MSG_SET, MSG_INFO, MSG_ERROR, MSG_TUNE_PID, MSG_SELECT_TIP,
 					MSG_FLASH_READ_ERR, MSG_FLASH_WRITE_ERR, MSG_FLASH_ERASE_ERR, MSG_FORMAT_COMPLETE, MSG_NO_TIP_LIST, MSG_DO_FORMAT_FLASH,
 					MSG_DO_ERASE_FLASH, MSG_FORMAT_FAILED, MSG_SAVE_ERROR, MSG_HOT_AIR_GUN, MSG_T12_IRON, MSG_JBC_IRON, MSG_SAVE_Q, MSG_YES, MSG_NO,
 					MSG_FLASH_ERASE, MSG_DSPL_IPS, MSG_DSPL_TFT, MSG_GUN_STBY,
-					MSG_UPDATE_FLASH,
+					MSG_UPDATE_FLASH, MSG_ENC_FAN, MSG_ENC_TEMP,
 					MSG_LAST,
 					MSG_ACTIVATE_TIPS 	= MSG_MENU_MAIN + 3,
 					MSG_ABOUT 			= MSG_MENU_MAIN + 8,
@@ -104,6 +107,7 @@ class NLS_MSG {
 				{"standby time",	std::string()},
 				{"standby temp.",	std::string()},
 				{"fan voltage",		std::string()},
+				{"encoder mode",	std::string()},
 				{"save",			std::string()},
 				{"calibrate gun",	std::string()},
 				{"back to menu",	std::string()},
@@ -162,7 +166,9 @@ class NLS_MSG {
 				{"IPS",						std::string()},
 				{"TFT",						std::string()},
 				{"standby",					std::string()},
-				{"updating flash",			std::string()}
+				{"updating flash",			std::string()},
+				{"fan speed",				std::string()},
+				{"temperature",				std::string()}
 		};
 		const t_msg_id menu[7] = { MSG_MENU_MAIN, MSG_MENU_SETUP, MSG_MENU_T12, MSG_MENU_JBC, MSG_MENU_GUN, MSG_MENU_CALIB, MSG_PID_MENU };
 };

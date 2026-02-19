@@ -18,6 +18,8 @@
  *  		Now HOTGUN::min_fan_speed and HOTGUN::max_fan_speed are no longer constant. Its should be updated by HOTGUN::setFanLimits() method.
  *  		Removed HOTGUN::minFanSpeed() and HOTGUN::maxFanSpeed()
  *  		Removed HOTGUN::fanStepPcnt()
+ *  2026 FEB 17, v1.04
+ *  	Decreased the HOTGUN::temp_gun_off value 50->35
  */
 
 #ifndef GUN_H_
@@ -87,7 +89,7 @@ class HOTGUN : public UNIT {
         const       uint8_t     max_fix_power 	= 50;
 		const		uint8_t		max_power		= 80;
 		const		uint16_t	max_cool_fan	= 1600;
-        const		uint16_t	temp_gun_off	= 50;		// The temperature of the Hot Air Gun when it is safe to shutdown
+        const		uint16_t	temp_gun_off	= 35;		// The temperature of the Hot Air Gun when it is safe to shutdown
         const		uint32_t	fan_off_timeout	= 6*60*1000;// The timeout to turn the fan off in cooling mode
         const		uint32_t	fan_extra_time	= 60000;	// Extra time to wait after the Hot Air Gun reaches the 'temp_gun_cold' temperature
 		const		uint16_t	fan_off_value	= 500;

@@ -3,10 +3,14 @@
  *
  *      Author: Alex
  *
- * 2024 NOV 16, v.1.00
+ *  2024 NOV 16, v.1.00
  * 		Ported from JBC controller source code, tailored to the new hardware
  * 	2025 JUN 09, v.1.02
  * 		Added MWORK::enc_changed_ms and MWORK::save_preset_tovariable to remember to save the temperature preset change
+ * 	2026 FEB 18, v1.04
+ * 		Implement the Hot Air Gun encoder mode while the Gun is running
+ * 		Changed the MWORK::return-to_temp into return_to_def
+ * 		Added MWORK::switchToFanSpeedMode() and MWORK::switchToTempMode();
  */
 
 #ifndef _WORK_MODE_H_
@@ -33,6 +37,8 @@ class MWORK : public DASH {
 		void			jbcPhaseEnd(void);					// Proceed JBC IRON end of phase
 		bool			t12IdleMode(void);					// Check the T12 IRON is used. Return tilt is active
 		void			jbcReadyMode(void);					// Check the JBC iron reached the preset temperature
+		void 			switchToFanSpeedMode(void);
+		void 			switchToTempMode(void);
 		bool 			manageEncoders(void);
 		void 			t12PressShort(void);
 		void  			t12PressLong(void);
@@ -51,7 +57,7 @@ class MWORK : public DASH {
 		uint32_t		enc_changed_ms	= 0;				// The time when the encoder rotated, ms
 		int16_t  		ambient			= 0;				// The ambient temperature
 		bool			edit_temp		= true;				// The HOT AIR GUN Encoder mode (Edit Temp/Edit fan)
-		uint32_t		return_to_temp	= 0;				// Time when to return to temperature edit mode (ms)
+		uint32_t		return_to_def	= 0;				// Time when to return to temperature edit mode (ms)
 		bool			start			= true;				// Flag indicating the controller just started (used to turn the IRON on)
 		const uint16_t	period			= 500;				// Redraw display period (ms)
 		const uint16_t	tilt_show_time	= 1500;				// Time the tilt icon to be shown
